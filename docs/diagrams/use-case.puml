@@ -1,0 +1,89 @@
+@startuml
+title League Management System - Use Case Diagram
+
+left to right direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+
+actor Administrator
+actor Encoder
+actor Viewer
+
+rectangle "League Management System" {
+
+    package "Administration" {
+
+        usecase "Manage Users" as UC1
+        usecase "Manage Roles" as UC2
+        usecase "Manage Sports" as UC3
+        usecase "Manage Divisions" as UC4
+        usecase "Manage Seasons" as UC5
+        usecase "Manage Venues" as UC6
+        usecase "Manage Teams" as UC7
+        usecase "Manage Players" as UC8
+        usecase "Manage Rosters" as UC9
+        usecase "Manage Games" as UC10
+        usecase "Finalize Game" as UC11
+        usecase "Reopen Finalized Game" as UC12
+        usecase "Manage Statistics" as UC13
+        usecase "Manage Standings" as UC14
+        usecase "Manage System Configuration" as UC15
+
+    }
+
+    package "Game Encoding" {
+
+        usecase "Encode Game Statistics" as UC16
+        usecase "Edit Statistics\n(Non-finalized Game)" as UC17
+
+    }
+
+    package "Public Information" {
+
+        usecase "View Seasons" as UC18
+        usecase "View Teams" as UC19
+        usecase "View Players" as UC20
+        usecase "View Schedules" as UC21
+        usecase "View Game Results" as UC22
+        usecase "View Standings" as UC23
+        usecase "View Player Statistics" as UC24
+        usecase "View Team Statistics" as UC25
+        usecase "View Playoff Brackets" as UC26
+
+    }
+
+}
+
+Administrator --> UC1
+Administrator --> UC2
+Administrator --> UC3
+Administrator --> UC4
+Administrator --> UC5
+Administrator --> UC6
+Administrator --> UC7
+Administrator --> UC8
+Administrator --> UC9
+Administrator --> UC10
+Administrator --> UC11
+Administrator --> UC12
+Administrator --> UC13
+Administrator --> UC14
+Administrator --> UC15
+
+Encoder --> UC16
+Encoder --> UC17
+Encoder --> UC19
+Encoder --> UC20
+Encoder --> UC21
+
+Viewer --> UC18
+Viewer --> UC19
+Viewer --> UC20
+Viewer --> UC21
+Viewer --> UC22
+Viewer --> UC23
+Viewer --> UC24
+Viewer --> UC25
+Viewer --> UC26
+
+@enduml

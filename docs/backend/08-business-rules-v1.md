@@ -1,0 +1,507 @@
+# Business Rules
+
+## Overview
+
+Business rules define the policies, constraints, and operational guidelines of the League Management System.
+
+These rules ensure:
+
+* Fair tournament management
+* Data integrity
+* Historical accuracy
+* Consistent system behavior
+
+---
+
+# Division Rules
+
+## BR-001
+
+A division must have a unique name.
+
+### Examples
+
+Valid:
+
+* Senior Division
+* Junior Division
+
+Invalid:
+
+* Two divisions with the same name
+
+---
+
+## BR-002
+
+A division may be used by multiple sports across multiple seasons.
+
+Example:
+
+```text
+Senior Division
+    ├── Basketball 2026
+    └── Volleyball 2026
+```
+
+---
+
+# Season Rules
+
+## BR-003
+
+A season must have a unique name.
+
+### Examples
+
+Valid:
+
+* Summer League 2026
+* Inter-Barangay Cup 2026
+
+Invalid:
+
+* Duplicate season names
+
+---
+
+## BR-004
+
+A season may contain one or more sports.
+
+Example:
+
+```text
+Summer League 2026
+    ├── Basketball
+    └── Volleyball
+```
+
+---
+
+## BR-005
+
+Only one active season shall exist at a time.
+
+---
+
+## BR-006
+
+A season shall have one of the following statuses:
+
+* Registration
+* Ongoing
+* Completed
+* Archived
+
+---
+
+## BR-007
+
+A season may define a registration window.
+
+Only teams registered during the registration window may participate.
+
+---
+
+# Team Rules
+
+## BR-008
+
+A Season Team must belong to exactly one Season Sport Division.
+
+---
+
+## BR-009
+
+A Season Team name must be unique within a Season Sport Division.
+
+### Examples
+
+Valid:
+
+```text
+Senior Basketball
+    Warriors
+    Eagles
+```
+
+Invalid:
+
+```text
+Senior Basketball
+    Warriors
+    Warriors
+```
+
+---
+
+## BR-010
+
+A Season Team may optionally define:
+
+* Coach Name
+* Manager Name
+* Barangay
+* Team Color
+
+---
+
+## BR-011
+
+Season Teams are season-specific entities.
+
+No permanent Team entity exists in Version 1.
+
+---
+
+# Player Rules
+
+## BR-012
+
+A player shall only have one permanent player record in the system.
+
+Uniqueness shall be determined by:
+
+```text
+First Name
+Middle Name
+Last Name
+Birthdate
+```
+
+---
+
+## BR-013
+
+Player records may participate in multiple seasons.
+
+---
+
+## BR-014
+
+A player may only belong to one team per Sport per Season.
+
+### Examples
+
+Valid:
+
+```text
+Basketball Team A
+Volleyball Team B
+```
+
+Invalid:
+
+```text
+Basketball Team A
+Basketball Team B
+```
+
+within the same season.
+
+---
+
+## BR-015
+
+A player must belong to a team roster before participating in a game.
+
+---
+
+## BR-016
+
+Players aged 18 years and above must have a voter registration record.
+
+---
+
+# Roster Rules
+
+## BR-017
+
+A roster record links a player to a Season Team.
+
+---
+
+## BR-018
+
+Jersey numbers must be unique within a team roster.
+
+---
+
+## BR-019
+
+A team roster shall respect the configured maximum roster size.
+
+---
+
+## BR-020
+
+A team roster must satisfy the configured minimum roster size before the team may participate.
+
+---
+
+## BR-021
+
+Roster modifications shall only be allowed while the season is in Registration status.
+
+---
+
+## BR-022
+
+Removing a player from a roster shall not delete the player's permanent record.
+
+---
+
+# Schedule Rules
+
+## BR-023
+
+Rounds shall be manually created by an Administrator.
+
+---
+
+## BR-024
+
+Games shall be manually scheduled by an Administrator.
+
+---
+
+## BR-025
+
+A game must belong to exactly one Round.
+
+---
+
+# Game Rules
+
+## BR-026
+
+A game must involve exactly two teams.
+
+---
+
+## BR-027
+
+Both teams must belong to the same Season Sport Division.
+
+---
+
+## BR-028
+
+A game must be scheduled before statistics may be encoded.
+
+---
+
+## BR-029
+
+A game shall have one of the following statuses:
+
+* Scheduled
+* Ongoing
+* Finalized
+* Cancelled
+
+---
+
+## BR-030
+
+Only finalized games shall affect standings.
+
+---
+
+## BR-031
+
+Completed games shall permanently preserve final scores.
+
+---
+
+## BR-032
+
+Overtime periods shall be supported.
+
+---
+
+## BR-033
+
+Only Administrators may reopen finalized games.
+
+---
+
+# Statistics Rules
+
+## BR-034
+
+Player statistics shall be recorded per game.
+
+---
+
+## BR-035
+
+Statistic types shall be configurable and stored in the database.
+
+---
+
+## BR-036
+
+A player may only have one statistic value per game per statistic type.
+
+Unique Constraint:
+
+```text
+(game_id, player_id, statistic_type_id)
+```
+
+---
+
+## BR-037
+
+Season statistics shall be computed dynamically from finalized games.
+
+---
+
+# Encoding Rules
+
+## BR-038
+
+Only authorized users may encode game statistics.
+
+---
+
+## BR-039
+
+Encoders may edit statistics only for non-finalized games.
+
+---
+
+## BR-040
+
+Administrators may edit any game.
+
+---
+
+# Standings Rules
+
+## BR-041
+
+Standings shall be calculated dynamically from finalized games.
+
+---
+
+## BR-042
+
+A win shall increase a team's win count.
+
+---
+
+## BR-043
+
+A loss shall increase a team's loss count.
+
+---
+
+## BR-044
+
+Standings shall only track:
+
+* Wins
+* Losses
+
+in Version 1.
+
+---
+
+# Playoff Rules
+
+## BR-045
+
+Version 1 shall support Single Elimination playoffs only.
+
+---
+
+## BR-046
+
+Playoff brackets shall be manually generated by Administrators.
+
+---
+
+## BR-047
+
+Playoff seeding shall be manually configured by Administrators.
+
+---
+
+## BR-048
+
+The system architecture shall support future playoff formats, including:
+
+* Double Elimination
+* Best-of-N Series
+
+---
+
+# Authorization Rules
+
+## BR-049
+
+Each User shall have exactly one Role.
+
+---
+
+## BR-050
+
+Only Administrators may reopen finalized games.
+
+---
+
+## BR-051
+
+Encoders may only edit non-finalized games.
+
+---
+
+# Data Retention Rules
+
+## BR-052
+
+Historical seasons shall remain permanently accessible.
+
+---
+
+## BR-053
+
+Historical games and statistics shall never be physically deleted.
+
+---
+
+## BR-054
+
+Production records shall be archived rather than physically deleted.
+
+---
+
+# API Rules
+
+## BR-055
+
+Critical POST endpoints shall support idempotency.
+
+---
+
+## BR-056
+
+Duplicate idempotent requests shall not execute business logic more than once.
+
+---
+
+# Audit Rules
+
+## BR-057
+
+System actions performed by authenticated users shall be auditable.
+
+Examples:
+
+* Season Creation
+* Team Registration
+* Game Finalization
+* User Management

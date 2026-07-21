@@ -1,0 +1,81 @@
+@startuml
+title League Management System - Component Diagram
+
+skinparam componentStyle rectangle
+skinparam shadowing false
+
+package "Client" {
+
+    package "React Frontend" {
+
+        [Pages]
+        [Layouts]
+        [Components]
+
+        [Hooks]
+        [Context]
+
+        [API Services]
+
+        [TanStack Query]
+        [React Hook Form]
+    }
+
+}
+
+package "Server" {
+
+    package "Flask Backend" {
+
+        [Controllers]
+        [Schemas]
+        [Services]
+        [Policies]
+        [Repositories]
+        [Models]
+
+    }
+
+}
+
+database "MySQL" as DB
+
+package "Infrastructure" {
+
+    [Session Authentication]
+    [Alembic]
+    [Configuration]
+    [Logging]
+    [Response Helpers]
+    [Error Handling]
+
+}
+
+Pages --> Components
+Pages --> Hooks
+
+Hooks --> Context
+Hooks --> "TanStack Query"
+
+Components --> "React Hook Form"
+
+"API Services" --> Controllers
+
+Controllers --> Schemas
+Controllers --> Services
+
+Services --> Policies
+Services --> Repositories
+
+Repositories --> Models
+
+Models --> DB
+
+Controllers --> "Response Helpers"
+Controllers --> "Error Handling"
+
+Services --> "Session Authentication"
+
+Alembic --> DB
+
+@enduml

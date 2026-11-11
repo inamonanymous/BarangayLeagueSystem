@@ -65,12 +65,16 @@ export interface Division {
   maximum_roster_size: number
 }
 
+export interface ConfiguredDivision extends Division {
+  assignment_id: number
+}
+
 export interface SeasonSportConfiguration {
   id: number
   season_id: number
   sport_id: number
   sport: Sport
-  divisions: Division[]
+  divisions: ConfiguredDivision[]
 }
 
 export interface SeasonConfiguration {
@@ -98,6 +102,15 @@ export async function createCatalogSport(name: string, description: string): Pro
   return response.data.data
 }
 
+export async function updateCatalogSport(sportId: number, name: string, description: string): Promise<Sport> {
+  const response = await api.put<ApiResponse<Sport>>(`/catalogs/sports/${sportId}`, { name, description })
+  return response.data.data
+}
+
+export async function deleteCatalogSport(sportId: number): Promise<void> {
+  await api.delete(`/catalogs/sports/${sportId}`)
+}
+
 export async function createCatalogDivision(payload: {
   name: string
   gender_policy: Division['gender_policy']
@@ -106,6 +119,20 @@ export async function createCatalogDivision(payload: {
 }): Promise<Division> {
   const response = await api.post<ApiResponse<Division>>('/catalogs/divisions', payload)
   return response.data.data
+}
+
+export async function updateCatalogDivision(divisionId: number, payload: {
+  name: string
+  gender_policy: Division['gender_policy']
+  minimum_roster_size: number
+  maximum_roster_size: number
+}): Promise<Division> {
+  const response = await api.put<ApiResponse<Division>>(`/catalogs/divisions/${divisionId}`, payload)
+  return response.data.data
+}
+
+export async function deleteCatalogDivision(divisionId: number): Promise<void> {
+  await api.delete(`/catalogs/divisions/${divisionId}`)
 }
 
 export async function assignSportToSeason(seasonId: number, sport_id: number): Promise<void> {
@@ -117,4 +144,15 @@ export async function assignDivisionToSeasonSport(
   division_id: number,
 ): Promise<void> {
   await api.post(`/seasons/sports/${seasonSportId}/divisions`, { division_id })
+}
+
+export async function removeSportFromSeason(seasonId: number, seasonSportId: number): Promise<void> {
+  await api.delete(`/seasons/${seasonId}/sports/${seasonSportId}`)
+}
+
+export async function removeDivisionFromSeasonSport(
+  seasonSportId: number,
+  assignmentId: number,
+): Promise<void> {
+  await api.delete(`/seasons/sports/${seasonSportId}/divisions/${assignmentId}`)
 }

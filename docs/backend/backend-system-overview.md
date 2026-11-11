@@ -1,131 +1,47 @@
 # Backend System Overview
 
-## 1. Overall structure
+## Current Scope
 
-This backend is a Flask application organized in layers:
+The backend is a Flask JSON API organized around feature routes, application services, policies, repositories, SQLAlchemy models, and Alembic migrations. The main entry point is [wsgi.py](../../backend/wsgi.py); the app factory and blueprint registration are in [app/__init__.py](../../backend/app/__init__.py) and [app/api/v1/__init__.py](../../backend/app/api/v1/__init__.py).
 
-- Routes: handle incoming HTTP requests
-- Services: contain business logic
-- Models: define database tables and behavior
-- Extensions: initialize Flask, SQLAlchemy, migrations, and sessions
+## Request Flow
 
-The main entry point is:
-- [backend/wsgi.py](../wsgi.py)
+The intended path is:
 
-The app factory is created in:
-- [backend/app/__init__.py](../app/__init__.py)
+```text
+Route -> Schema -> Service -> Policy / Repository -> Model -> Database
+   ^                                                        |
+   +---------------------- JSON response -------------------+
+```
 
----
+Routes parse HTTP requests, load Marshmallow schemas, call services, and format API responses. Services coordinate use cases and own transactions. Policies apply stateless business checks. Repositories perform database reads and writes. Models define persisted entities and serialization helpers.
 
-## 2. Request flow
+This is the current implemented pattern, not a fully abstract Unit-of-Work architecture: services commit through SQLAlchemy's `db.session` directly.
 
-A request usually follows this path:
+## Implemented Features
 
-Route -> Service -> Model/Database -> Response
+- **Authentication and users:** login, logout, current-user lookup, session-based authentication, and Administrator-only user creation.
+- **Season lifecycle:** list/create, controlled status transitions, history retention, and single-active-season validation at the service layer.
+- **Sports and divisions:** catalog create/list/update/delete, plus season-specific sport and division assignments. Catalog deletion is rejected while referenced; season assignments may be edited only while the season is Planning or Registration.
 
-Example:
-1. A request reaches a route in the API package
-2. The route calls a service
-3. The service queries or updates the database through models
-4. The route returns a JSON response
+The current ORM models are User, Role, Season, Sport, Division, SeasonSport, and SeasonSportDivision. Teams, players, rosters, games, statistics, playoffs, reports, audit logging, idempotency storage, and system settings remain planned.
 
----
+## Main Packages
 
-## 3. Main backend folders
+- `app/api/v1`: HTTP endpoints grouped by feature.
+- `app/application`: services and policies.
+- `app/infrastructure/database`: repositories and persistence helpers.
+- `app/domain/models`: SQLAlchemy entities.
+- `app/schemas`: request validation and deserialization.
+- `app/extensions`: SQLAlchemy, Flask-Migrate, and session initialization.
+- `migrations/versions`: forward/backward schema changes.
 
-### app/api/v1
-Contains API routes grouped by feature.
+## Feature Flow Examples
 
-Current example:
-- [backend/app/api/v1/auth/routes.py](../app/api/v1/auth/routes.py)
+Authentication flows through [auth routes](../../backend/app/api/v1/auth/routes.py), [AuthService](../../backend/app/application/auth/services.py), [AuthPolicy](../../backend/app/application/auth/policies.py), and UserRepository.
 
-### app/application
-Contains application logic and services.
+Season configuration flows through [season routes](../../backend/app/api/v1/seasons/routes.py), [CatalogService](../../backend/app/application/catalogs/services.py), [CatalogPolicy](../../backend/app/application/catalogs/policies.py), and [CatalogRepository](../../backend/app/infrastructure/database/catalog_repository.py).
 
-Current example:
-- [backend/app/application/auth/services.py](../app/application/auth/services.py)
+## Current Alignment
 
-### app/domain/models
-Contains database models.
-
-Current examples:
-- [backend/app/domain/models/user.py](../app/domain/models/user.py)
-- [backend/app/domain/models/role.py](../app/domain/models/role.py)
-
-### app/extensions
-Initializes shared Flask extensions like SQLAlchemy and Flask Session.
-
-### app/config
-Stores configuration for development, testing, production, and base settings.
-
----
-
-## 4. Current authentication flow
-
-The current auth flow is centered around login/logout and current user retrieval.
-
-### Login flow
-1. The client sends a request to /api/v1/auth/login
-2. The route reads the username and password from the request body
-3. The AuthService checks:
-   - whether the user exists
-   - whether the password is correct
-   - whether the account is active
-4. If valid, the route stores the user in the session
-5. The API returns a success response with the user data
-
-### Logout flow
-1. The client calls /api/v1/auth/logout
-2. The route clears the session
-3. The API returns a success response
-
-### Current user flow
-1. The client calls /api/v1/auth/me
-2. The route reads the session user id
-3. It loads the user from the database
-4. It returns the user data if authenticated
-
----
-
-## 5. Important files to know
-
-### Entry and app setup
-- [backend/wsgi.py](../wsgi.py)
-- [backend/app/__init__.py](../app/__init__.py)
-- [backend/app/api/v1/__init__.py](../app/api/v1/__init__.py)
-
-### Auth
-- [backend/app/api/v1/auth/routes.py](../app/api/v1/auth/routes.py)
-- [backend/app/application/auth/services.py](../app/application/auth/services.py)
-
-### Models
-- [backend/app/domain/models/user.py](../app/domain/models/user.py)
-- [backend/app/domain/models/role.py](../app/domain/models/role.py)
-
-### Shared helpers
-- [backend/app/application/common/responses/api_response.py](../app/application/common/responses/api_response.py)
-- [backend/app/application/common/utils/base_classes.py](../app/application/common/utils/base_classes.py)
-
----
-
-## 6. How to read the code
-
-When learning the system, use this order:
-1. Read the route file
-2. Follow the service it calls
-3. Inspect the model it uses
-4. Check the response helper if needed
-
-This keeps the flow understandable and predictable.
-
----
-
-## 7. Current implementation status
-
-The current backend focus is around:
-- authentication
-- user and role modeling
-- base application structure
-
-The roadmap for future implementation is tracked in:
-- [docs/checklist.md](../../checklist.md)
+This overview describes implemented behavior. The full Version 1 target and known gaps are recorded in [the implementation alignment tracker](implementation-alignment.md); the project roadmap is in [the checklist](../../checklist.md).

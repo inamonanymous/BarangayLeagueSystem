@@ -68,9 +68,9 @@ class CatalogService(BaseService):
     def create_division(
         self,
         name: str,
-        gender_policy: str,
         minimum_roster_size: int,
         maximum_roster_size: int,
+        gender_policy: str = "ANY",
     ) -> Division:
         normalized_name = self.policy.normalize_name(name, "Division")
         normalized_policy = self.policy.validate_division(
@@ -95,9 +95,9 @@ class CatalogService(BaseService):
         self,
         division_id: int,
         name: str,
-        gender_policy: str,
         minimum_roster_size: int,
         maximum_roster_size: int,
+        gender_policy: str = "ANY",
     ) -> Division:
         division = self.repository.get_division(division_id)
         if division is None:
@@ -141,7 +141,10 @@ class CatalogService(BaseService):
             for association in self.repository.season_sport_divisions(season_sport.id):
                 division = self.repository.get_division(association.division_id)
                 if division is not None:
-                    configured_divisions.append(division.to_dict())
+                    configured_divisions.append({
+                        "assignment_id": association.id,
+                        **division.to_dict(),
+                    })
             if sport is not None:
                 configured_sports.append({
                     **season_sport.to_dict(),

@@ -94,7 +94,7 @@ function SeasonsPage() {
           <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '0.9rem' }}>
             <label style={{ display: 'grid', gap: '0.35rem' }}>
               Season name
-              <input required minLength={1} maxLength={100} value={name} onChange={(event) => setName(event.target.value)} />
+              <input required minLength={1} maxLength={150} value={name} onChange={(event) => setName(event.target.value)} />
             </label>
             <label style={{ display: 'grid', gap: '0.35rem' }}>
               Year

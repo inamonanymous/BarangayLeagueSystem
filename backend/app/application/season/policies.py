@@ -23,8 +23,8 @@ class SeasonPolicy(BasePolicy):
         normalized_name = name.strip() if isinstance(name, str) else ""
         if not normalized_name:
             raise ValueError("Season name is required.")
-        if len(normalized_name) > 100:
-            raise ValueError("Season name must be 100 characters or fewer.")
+        if len(normalized_name) > 150:
+            raise ValueError("Season name must be 150 characters or fewer.")
         return normalized_name
 
     def normalize_status(self, season_status: str) -> str:

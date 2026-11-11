@@ -93,101 +93,77 @@ FOUNDATION (Before Coding)
 
 Backend
 
-[ ] Initialize Flask Project
+[x] Initialize Flask Project
 
-[ ] Folder Structure
+[x] Folder Structure
 
-[ ] Configuration
+[x] Configuration
 
-[ ] Environment Variables
+[x] Environment Variables
 
-[ ] SQLAlchemy
+[x] SQLAlchemy
 
-[ ] Alembic
+[x] Alembic (migration chain exists; fresh-install users-table prerequisite is tracked)
 
-[ ] Marshmallow
+[x] Marshmallow
 
-[ ] Session Authentication
+[x] Session Authentication
 
-[ ] Error Handling
+[x] Error Handling
 
-[ ] API Response Helpers
+[x] API Response Helpers
 
 [ ] Logging
 
-[ ] Testing Setup
+[x] Testing Setup
 
 Frontend
 
-[ ] Initialize React Project
+[x] Initialize React Project
 
 [ ] Tailwind CSS
 
-[ ] React Router
+[x] React Router
 
-[ ] Axios
+[x] Axios
 
-[ ] TanStack Query
+[x] TanStack Query
 
-[ ] React Hook Form
+[ ] React Hook Form (dependency present; current forms use controlled inputs)
 
 [ ] TanStack Table
 
-[ ] Lucide React
+[x] Lucide React
 
-[ ] Folder Structure
+[x] Folder Structure
 
-[ ] Shared Components
+[ ] Shared Components (partial; shared API and layout exist)
 
 ----------------------------------------------
 
 IMPLEMENTATION
 ----------------------------------------------
 
-Sprint 1
-[ ] Authentication
-
-Sprint 2
-[ ] Users
-[ ] Roles
-
-Sprint 3
-[ ] Sports
-[ ] Seasons
-[ ] Divisions
-
-Sprint 4
-[ ] Venues
-[ ] Players
-[ ] Voter Registration
-
-Sprint 5
-[ ] Teams
-[ ] Rosters
-
-Sprint 6
-[ ] Rounds
-[ ] Games
-
-Sprint 7
-[ ] Statistics
-[ ] Standings
-
-Sprint 8
-[ ] Playoff Brackets
-
-Sprint 9
-[ ] Dashboard
-[ ] Reports
+| Sprint | Status | Implemented scope / remaining |
+| --- | --- | --- |
+| 1. Authentication | Complete | Session login/logout/current-user; tested. |
+| 2. Users and Roles | Partial | Role-based access and Administrator-created users; list, edit, activation, and password reset remain. |
+| 3. Sports, Seasons, Divisions | Partial | Season lifecycle, reusable Sport/Division catalogs, and season assignments; stronger database enforcement and UX remain. |
+| 4. Venues, Players, Eligibility | Planned | No models or workflows yet. Eligibility is currently described as voter verification; reconcile it with the ERD's VoterRegistration entity. |
+| 5. Teams and Rosters | Planned | Depends on SeasonSportDivision configuration. |
+| 6. Rounds and Games | Planned | No models or workflows yet. |
+| 7. Statistics and Standings | Planned | No models or workflows yet. |
+| 8. Playoff Brackets | Planned | No models or workflows yet. |
+| 9. Dashboard and Reports | Partial | A basic authenticated dashboard exists; league data/reporting remains planned. |
 
 ----------------------------------------------
 
 TESTING
 ----------------------------------------------
 
-[ ] Unit Testing
+[~] Unit Testing (auth, catalogs, and season slices covered; full domain coverage remains)
 
-[ ] Integration Testing
+[~] Integration Testing (implemented API slices covered; broader workflows remain)
 
 [ ] Functional Testing
 

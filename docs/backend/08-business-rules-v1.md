@@ -81,7 +81,11 @@ Summer League 2026
 
 ## BR-005
 
-Only one active season shall exist at a time.
+New seasons are created in `Planning`. Status transitions are controlled: `Planning` may move to `Registration` or `Archived`; `Registration` may move to `Ongoing` or `Archived`; `Ongoing` may move to `Completed`; and `Completed` may move to `Archived`. `Archived` is final.
+
+Only one season may be active at a time. A season is active while its status is `Registration` or `Ongoing`. A new season may become active only after the current active season is completed or archived.
+
+Completed and archived seasons remain in the system as historical records and may be viewed in season history. They do not count as active seasons.
 
 ---
 
@@ -89,6 +93,7 @@ Only one active season shall exist at a time.
 
 A season shall have one of the following statuses:
 
+* Planning
 * Registration
 * Ongoing
 * Completed

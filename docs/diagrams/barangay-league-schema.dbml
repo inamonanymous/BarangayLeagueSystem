@@ -1,0 +1,261 @@
+// Import this file into https://dbdiagram.io (New Diagram > Import > DBML).
+// Source: docs/backend/05-database-design-v1.md
+// This represents the documented target schema, not only the tables currently implemented.
+
+Table SystemSettings {
+  id bigint [pk]
+  barangay_name varchar(150)
+  municipality varchar(150)
+  province varchar(150)
+  address text
+  contact_number varchar(30)
+  created_at datetime
+  updated_at datetime
+  Note: 'Expected to contain one record per installation.'
+}
+
+Table Season {
+  id bigint [pk]
+  name varchar(150) [not null, unique]
+  year int [not null]
+  registration_start_date date [not null]
+  registration_end_date date [not null]
+  start_date date
+  end_date date
+  season_status varchar(20) [not null, note: 'PLANNING, REGISTRATION, ONGOING, COMPLETED, ARCHIVED']
+  created_at datetime
+  updated_at datetime
+  Note: 'At most one season may be REGISTRATION or ONGOING. Completed and archived seasons remain as history.'
+}
+
+Table Sport {
+  id bigint [pk]
+  name varchar(100) [not null, unique]
+  description text
+  created_at datetime
+  updated_at datetime
+}
+
+Table Division {
+  id bigint [pk]
+  name varchar(100) [not null, unique]
+  gender_policy varchar(20) [note: 'ANY, MALE_ONLY, FEMALE_ONLY, MIXED']
+  minimum_roster_size int
+  maximum_roster_size int
+  created_at datetime
+  updated_at datetime
+}
+
+Table SeasonSport {
+  id bigint [pk]
+  season_id bigint [not null]
+  sport_id bigint [not null]
+  created_at datetime
+  updated_at datetime
+
+  indexes {
+    (season_id, sport_id) [unique]
+  }
+}
+
+Table SeasonSportDivision {
+  id bigint [pk]
+  season_sport_id bigint [not null]
+  division_id bigint [not null]
+  created_at datetime
+  updated_at datetime
+
+  indexes {
+    (season_sport_id, division_id) [unique]
+  }
+}
+
+Table SeasonTeam {
+  id bigint [pk]
+  season_sport_division_id bigint [not null]
+  name varchar(150) [not null]
+  barangay varchar(150) [not null]
+  coach_name varchar(150)
+  manager_name varchar(150)
+  team_color varchar(50)
+  created_at datetime
+  updated_at datetime
+
+  indexes {
+    (season_sport_division_id, name) [unique]
+  }
+}
+
+Table Player {
+  id bigint [pk]
+  first_name varchar(100) [not null]
+  middle_name varchar(100)
+  last_name varchar(100) [not null]
+  birthdate date [not null]
+  gender varchar(20) [note: 'Enum values are not specified in the database design.']
+  address text
+  created_at datetime
+  updated_at datetime
+
+  indexes {
+    (first_name, middle_name, last_name, birthdate) [unique]
+  }
+}
+
+Table SeasonPlayerEligibility {
+  id bigint [pk]
+  season_id bigint [not null]
+  player_id bigint [not null]
+  is_voter_verified boolean [not null]
+  voter_number varchar(100)
+  verified_by bigint
+  verified_at datetime
+  notes text
+  created_at datetime
+  updated_at datetime
+
+  indexes {
+    (season_id, player_id) [unique]
+  }
+}
+
+Table Roster {
+  id bigint [pk]
+  season_team_id bigint [not null]
+  player_id bigint [not null]
+  jersey_number varchar(10)
+  created_at datetime
+  updated_at datetime
+  Note: 'Documented rules: jersey numbers unique within a team; player can belong to one team per sport per season.'
+}
+
+Table Venue {
+  id bigint [pk]
+  name varchar(150) [not null]
+  address text
+  created_at datetime
+  updated_at datetime
+}
+
+Table Game {
+  id bigint [pk]
+  season_sport_division_id bigint [not null]
+  team_a_id bigint [not null]
+  team_b_id bigint [not null]
+  venue_id bigint
+  scheduled_at datetime [not null]
+  stage varchar(30) [note: 'REGULAR_SEASON, QUARTER_FINAL, SEMI_FINAL, THIRD_PLACE, FINAL']
+  status varchar(20) [note: 'SCHEDULED, FOR_ENCODING, FINALIZED, POSTPONED, CANCELLED']
+  team_a_score int
+  team_b_score int
+  overtime_count int
+  finalized_at datetime
+  finalized_by bigint
+  created_at datetime
+  updated_at datetime
+}
+
+Table StatisticType {
+  id bigint [pk]
+  sport_id bigint [not null]
+  name varchar(100) [not null]
+  abbreviation varchar(20) [not null]
+  created_at datetime
+  updated_at datetime
+}
+
+Table PlayerGameStatistic {
+  id bigint [pk]
+  game_id bigint [not null]
+  player_id bigint [not null]
+  statistic_type_id bigint [not null]
+  value decimal(10,2) [not null]
+  created_at datetime
+  updated_at datetime
+
+  indexes {
+    (game_id, player_id, statistic_type_id) [unique]
+  }
+}
+
+Table PlayoffBracket {
+  id bigint [pk]
+  season_sport_division_id bigint [not null]
+  name varchar(100) [not null]
+  format varchar(30) [note: 'SINGLE_ELIMINATION, DOUBLE_ELIMINATION, BEST_OF_N; V1 supports SINGLE_ELIMINATION.']
+  created_at datetime
+  updated_at datetime
+}
+
+Table PlayoffSeed {
+  id bigint [pk]
+  playoff_bracket_id bigint [not null]
+  season_team_id bigint [not null]
+  seed_number int [not null]
+}
+
+Table Role {
+  id bigint [pk]
+  name varchar(100) [not null, unique]
+  description text
+}
+
+Table User {
+  id bigint [pk]
+  username varchar(100) [not null, unique]
+  password_hash varchar(255) [not null]
+  role_id bigint [not null]
+  is_active boolean [not null]
+  created_at datetime
+  updated_at datetime
+}
+
+Table AuditLog {
+  id bigint [pk]
+  user_id bigint [not null]
+  action varchar(100) [not null]
+  entity_type varchar(100) [not null]
+  entity_id bigint [not null]
+  old_values json
+  new_values json
+  created_at datetime
+}
+
+Table ApiRequest {
+  id bigint [pk]
+  idempotency_key varchar(255) [not null, unique]
+  request_method varchar(20) [not null]
+  request_path varchar(255) [not null]
+  request_hash varchar(255) [not null]
+  response_status int [not null]
+  response_body json [not null]
+  user_id bigint
+  created_at datetime
+  expires_at datetime
+}
+
+Ref: SeasonSport.season_id > Season.id
+Ref: SeasonSport.sport_id > Sport.id
+Ref: SeasonSportDivision.season_sport_id > SeasonSport.id
+Ref: SeasonSportDivision.division_id > Division.id
+Ref: SeasonTeam.season_sport_division_id > SeasonSportDivision.id
+Ref: SeasonPlayerEligibility.season_id > Season.id
+Ref: SeasonPlayerEligibility.player_id > Player.id
+Ref: SeasonPlayerEligibility.verified_by > User.id
+Ref: Roster.season_team_id > SeasonTeam.id
+Ref: Roster.player_id > Player.id
+Ref: Game.season_sport_division_id > SeasonSportDivision.id
+Ref: Game.team_a_id > SeasonTeam.id
+Ref: Game.team_b_id > SeasonTeam.id
+Ref: Game.venue_id > Venue.id
+Ref: Game.finalized_by > User.id
+Ref: StatisticType.sport_id > Sport.id
+Ref: PlayerGameStatistic.game_id > Game.id
+Ref: PlayerGameStatistic.player_id > Player.id
+Ref: PlayerGameStatistic.statistic_type_id > StatisticType.id
+Ref: PlayoffBracket.season_sport_division_id > SeasonSportDivision.id
+Ref: PlayoffSeed.playoff_bracket_id > PlayoffBracket.id
+Ref: PlayoffSeed.season_team_id > SeasonTeam.id
+Ref: User.role_id > Role.id
+Ref: AuditLog.user_id > User.id
+Ref: ApiRequest.user_id > User.id

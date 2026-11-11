@@ -1,0 +1,182 @@
+from datetime import date
+
+import pytest
+
+from app import create_app
+from app.domain.models.roles import Role
+from app.domain.models.seasons import Season
+from app.domain.models.users import User
+from app.extensions import db
+
+
+@pytest.fixture()
+def client():
+    app = create_app("testing")
+    with app.app_context():
+        db.drop_all()
+        db.create_all()
+
+        admin_role = Role(name="Administrator", description="System administrator")
+        encoder_role = Role(name="Encoder", description="Game encoder")
+        db.session.add_all([admin_role, encoder_role])
+        db.session.flush()
+
+        admin = User(username="admin", role_id=admin_role.id, is_active=True)
+        admin.set_password("admin-pass-123")
+        encoder = User(username="encoder", role_id=encoder_role.id, is_active=True)
+        encoder.set_password("encoder-pass-123")
+        db.session.add_all([admin, encoder])
+        db.session.commit()
+
+        yield app.test_client()
+
+        db.session.remove()
+        db.drop_all()
+
+
+def login(client, username="admin", password="admin-pass-123"):
+    return client.post("/api/v1/auth/login", json={"username": username, "password": password})
+
+
+def season_payload(name="Summer League 2026", status="PLANNING"):
+    return {
+        "name": name,
+        "year": 2026,
+        "start_date": "2026-05-01",
+        "end_date": "2026-08-31",
+    }
+
+
+def test_season_history_is_public_and_includes_optional_dates(client):
+    response = client.get("/api/v1/seasons/")
+
+    assert response.status_code == 200
+    assert response.get_json()["data"] == []
+
+
+def test_admin_can_create_season(client):
+    login(client)
+
+    response = client.post("/api/v1/seasons/", json=season_payload())
+
+    assert response.status_code == 201
+    body = response.get_json()
+    assert body["data"]["name"] == "Summer League 2026"
+    assert body["data"]["registration_start_date"] is None
+    assert body["data"]["start_date"] == "2026-05-01"
+    assert body["data"]["season_status"] == "PLANNING"
+    assert Season.query.count() == 1
+
+
+def test_non_admin_cannot_create_season(client):
+    login(client, username="encoder", password="encoder-pass-123")
+
+    response = client.post("/api/v1/seasons/", json=season_payload())
+
+    assert response.status_code == 403
+
+
+def test_anonymous_cannot_create_season(client):
+    response = client.post("/api/v1/seasons/", json=season_payload())
+
+    assert response.status_code == 401
+
+
+def test_invalid_season_dates_return_bad_request(client):
+    login(client)
+    payload = season_payload()
+    payload["registration_start_date"] = "2026-05-02"
+    payload["registration_end_date"] = "2026-04-30"
+
+    response = client.post("/api/v1/seasons/", json=payload)
+
+    assert response.status_code == 400
+    assert Season.query.count() == 0
+
+
+def test_second_active_season_returns_conflict(client):
+    login(client)
+    first = client.post("/api/v1/seasons/", json=season_payload("First League"))
+    second = client.post("/api/v1/seasons/", json=season_payload("Second League"))
+    first_id = first.get_json()["data"]["id"]
+    second_id = second.get_json()["data"]["id"]
+    client.patch(
+        f"/api/v1/seasons/{first_id}/status",
+        json={"season_status": "REGISTRATION"},
+    )
+
+    response = client.patch(
+        f"/api/v1/seasons/{second_id}/status",
+        json={"season_status": "REGISTRATION"},
+    )
+
+    assert response.status_code == 409
+    assert Season.query.count() == 2
+
+
+def test_completed_seasons_remain_in_public_history(client):
+    login(client)
+    old_season = client.post("/api/v1/seasons/", json=season_payload("Old League"))
+    client.post("/api/v1/seasons/", json=season_payload("New League"))
+    old_id = old_season.get_json()["data"]["id"]
+    for status in ("REGISTRATION", "ONGOING", "COMPLETED"):
+        client.patch(
+            f"/api/v1/seasons/{old_id}/status",
+            json={"season_status": status},
+        )
+
+    response = client.get("/api/v1/seasons/")
+
+    assert [item["name"] for item in response.get_json()["data"]] == ["New League", "Old League"]
+
+
+def test_non_admin_cannot_transition_season(client):
+    login(client)
+    created = client.post("/api/v1/seasons/", json=season_payload())
+    season_id = created.get_json()["data"]["id"]
+    client.post("/api/v1/auth/logout")
+    login(client, username="encoder", password="encoder-pass-123")
+
+    response = client.patch(
+        f"/api/v1/seasons/{season_id}/status",
+        json={"season_status": "REGISTRATION"},
+    )
+
+    assert response.status_code == 403
+
+
+def test_invalid_status_transition_returns_bad_request(client):
+    login(client)
+    created = client.post("/api/v1/seasons/", json=season_payload())
+    season_id = created.get_json()["data"]["id"]
+
+    response = client.patch(
+        f"/api/v1/seasons/{season_id}/status",
+        json={"season_status": "ONGOING"},
+    )
+
+    assert response.status_code == 400
+
+
+def test_admin_can_advance_season_through_lifecycle(client):
+    login(client)
+    created = client.post("/api/v1/seasons/", json=season_payload())
+    season_id = created.get_json()["data"]["id"]
+
+    for status in ("REGISTRATION", "ONGOING", "COMPLETED", "ARCHIVED"):
+        response = client.patch(
+            f"/api/v1/seasons/{season_id}/status",
+            json={"season_status": status},
+        )
+        assert response.status_code == 200
+        assert response.get_json()["data"]["season_status"] == status
+
+
+def test_registration_window_requires_both_dates(client):
+    login(client)
+    payload = season_payload()
+    payload["registration_start_date"] = "2026-04-01"
+
+    response = client.post("/api/v1/seasons/", json=payload)
+
+    assert response.status_code == 400

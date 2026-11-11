@@ -99,18 +99,21 @@ Represents a league season.
 | id                      | BIGINT       | PK                                                   |
 | name                    | VARCHAR(150) |                                                      |
 | year                    | INT          |                                                      |
-| registration_start_date | DATE         |                                                      |
-| registration_end_date   | DATE         |                                                      |
+| registration_start_date | DATE         | Nullable; set with registration_end_date             |
+| registration_end_date   | DATE         | Nullable; set with registration_start_date           |
 | start_date              | DATE         | Nullable                                             |
 | end_date                | DATE         | Nullable                                             |
-| status                  | ENUM         | PLANNING, REGISTRATION, ONGOING, COMPLETED, ARCHIVED |
+| season_status                  | ENUM         | PLANNING, REGISTRATION, ONGOING, COMPLETED, ARCHIVED |
 | created_at              | DATETIME     |                                                      |
 | updated_at              | DATETIME     |                                                      |
 
 Business Rules:
 
-* Multiple seasons may be active simultaneously.
-* The same sport cannot have multiple active seasons simultaneously.
+* New seasons are created in `PLANNING` status.
+* Status changes follow `PLANNING` → `REGISTRATION` → `ONGOING` → `COMPLETED` → `ARCHIVED`; a planned season may also be archived.
+* At most one season may be active at a time. `REGISTRATION` and `ONGOING` are active statuses.
+* A new season may become active only after the current active season is completed or archived.
+* Completed and archived seasons remain stored as historical records and are not deleted when a new season starts.
 
 ---
 

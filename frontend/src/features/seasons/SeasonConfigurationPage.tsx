@@ -21,6 +21,7 @@ import {
   type SeasonConfiguration,
 } from '../../shared/api/seasons'
 import { useCurrentUser } from '../auth/useCurrentUser'
+import SeasonTeamsSection from './SeasonTeamsSection'
 
 interface ApiErrorResponse {
   message?: string
@@ -413,6 +414,13 @@ function SeasonConfigurationPage() {
                         Remove
                       </button>
                     ) : null}
+                    <SeasonTeamsSection
+                      divisionAssignmentId={division.assignment_id}
+                      seasonStatus={configuration.season.season_status}
+                      registrationStartDate={configuration.season.registration_start_date}
+                      registrationEndDate={configuration.season.registration_end_date}
+                      isAdmin={isAdmin}
+                    />
                   </li>
                 ))}
               </ul>

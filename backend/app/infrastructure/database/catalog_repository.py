@@ -3,6 +3,7 @@ from app.domain.models.divisions import Division
 from app.domain.models.season_sport_divisions import SeasonSportDivision
 from app.domain.models.season_sports import SeasonSport
 from app.domain.models.seasons import Season
+from app.domain.models.season_teams import SeasonTeam
 from app.domain.models.sports import Sport
 from app.extensions import db
 
@@ -51,6 +52,11 @@ class CatalogRepository(BaseRepository):
             .order_by(SeasonSportDivision.id.asc())
             .all()
         )
+
+    def division_assignment_has_teams(self, assignment_id: int) -> bool:
+        return SeasonTeam.query.filter_by(
+            season_sport_division_id=assignment_id,
+        ).first() is not None
 
     def division_for_season_sport(self, season_sport_id: int, division_id: int) -> SeasonSportDivision | None:
         return SeasonSportDivision.query.filter_by(

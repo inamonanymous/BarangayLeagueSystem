@@ -13,14 +13,16 @@ This file separates the documented Version 1 target from what is currently imple
 | Season lifecycle | Public history, Administrator create, controlled status transitions, date validation, and sequential one-active-season checks. |
 | Sport and Division catalogs | Administrator create/read/update/delete. Catalog entries cannot be deleted while referenced. |
 | Season configuration | Assign catalog Sports to a Season; assign catalog Divisions under a Season-Sport; remove those assignments while the Season is Planning or Registration. |
-| Frontend | Login, dashboard, Add User, Seasons, and Season Configuration pages. |
-| Database migrations | Roles/legacy user-role conversion, Seasons, optional registration dates, Sport/Division catalogs, and season association tables. The current checked-in head additionally includes the Season name-width migration described below. |
+| Season Teams | Public list/register, update, and soft archive/restore. Registration requires Registration status and is constrained by the season window. Duplicate names are blocked per division. |
+| Players and Rosters | Administrator Player profile create/read/update/archive/restore; roster list/add/jersey update/remove. Adult roster additions require voter verification, and Player profiles remain when roster links are removed. |
+| Frontend | Login, dashboard, Add User, Players, Seasons, Season Configuration, Team registration, and nested Roster management. |
+| Database migrations | Roles/legacy user-role conversion, Seasons, optional registration dates, Sport/Division catalogs, SeasonTeam, Player, Roster, eligibility, and archive fields. |
 
 ## Implemented Tables
 
-The current ORM models cover `users`, `roles`, `seasons`, `sports`, `divisions`, `season_sports`, and `season_sport_divisions`. The migration chain creates the role, season, sport/division, and association tables; its first migration assumes a `users` table already exists.
+The current ORM models cover `users`, `roles`, `seasons`, `sports`, `divisions`, `season_sports`, `season_sport_divisions`, `season_teams`, `players`, `rosters`, and `season_player_eligibilities`. The migration chain creates these feature tables; its first migration assumes a `users` table already exists.
 
-The remaining tables in the Version 1 database design are targets, not implemented tables. This includes teams, players, rosters, games, venues, statistics, playoffs, audit logs, API request idempotency, and system settings.
+The remaining tables in the Version 1 database design are targets, not implemented tables. This includes games, venues, statistics, playoffs, audit logs, API request idempotency, and system settings.
 
 ## Misalignment Register
 
@@ -32,6 +34,9 @@ The remaining tables in the Version 1 database design are targets, not implement
 | Medium | API docs describe idempotency and an `ApiRequest` table, but the current idempotency decorator is a pass-through and there is no model/migration. | Treat idempotency as planned; implement storage and replay semantics before marking it complete. |
 | Medium | Business rules and API specification describe Rounds, but the canonical database design has no Round table or `round_id` on Game. | Decide whether Rounds are part of Version 1; if yes, define the table and relation in the database design before implementing them. |
 | Medium | The Season completion transition does not require or set `end_date`, although the date is intended to describe competition dates. | Decide whether completion requires an end date or records one automatically, then encode and test that rule. |
+| Medium | Player gender is stored as short text because the docs call it an enum but do not define allowed values. | Agree on the permitted gender values and convert the column/schema to a validated enum if needed. |
+| Medium | Roster minimum size is documented but only the maximum is enforced during roster additions. | Decide when minimum roster size is required (for example, before moving a season to Ongoing), then enforce and test it at that workflow boundary. |
+| Medium | SeasonTeam registration checks the current date against the registration window but does not persist a dedicated `registered_on` date. | Add an auditable registration date if later reports or eligibility rules need to prove when a team registered. |
 | Low | The full architecture document describes a Unit of Work, but current services commit via `db.session` directly. | Accept this as a deliberate current simplification or add a Unit of Work when transaction coordination grows. |
 | Low | Editing a shared Sport or Division changes the catalog record shown by every season assignment; no per-season snapshot is stored. | Confirm this shared-update behavior is intended. If historical values must be frozen, add versioned/snapshotted configuration before teams and games depend on it. |
 
@@ -45,13 +50,12 @@ The remaining tables in the Version 1 database design are targets, not implement
 | 2026-11-12 | ERD omitted SeasonPlayerEligibility relationships after entity names were aligned. | Added Season, Player, and verifying User relationships to its summary. |
 | 2026-11-12 | Schemas used Marshmallow `load_default`, but the project pins Marshmallow 3.9.0, which did not apply those defaults. | Removed the unsupported schema options; optional values now fall through to explicit service defaults. |
 
-## Pending Migration
+## Migration State
 
-The database-design document specifies Season names up to 150 characters. The model, request schema, policy, frontend, and a new migration now match that limit. The current database was last confirmed at revision `c8d47a1e2f90`; apply the new `d29e7b6ac145` migration with `flask --app wsgi db upgrade` before accepting names longer than 100 characters in that database.
+The development database is confirmed at migration head `a6b93c1d5e80`, which includes Player, Roster, eligibility, and archive schema changes. The Season name-width change is included in its parent revision `d29e7b6ac145`.
 
 ## Recommended Next Work
 
-1. Apply and verify the pending Season name-width migration.
-2. Decide the migration bootstrap and soft-delete policy.
-3. Add `SeasonTeam` management, which can now depend on the implemented Season-Sport-Division chain.
-4. Continue with Player, Eligibility, and Roster features, reconciling the ERD first.
+1. Define and enforce when the minimum roster size must be met before a team participates.
+2. Decide the allowed Player gender values and whether roster eligibility needs a separate voter-registration source.
+3. Before production, resolve the fresh-install migration prerequisite, concurrent active-season enforcement, and soft-delete policy recorded above.

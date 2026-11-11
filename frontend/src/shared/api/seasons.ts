@@ -82,6 +82,19 @@ export interface SeasonConfiguration {
   sports: SeasonSportConfiguration[]
 }
 
+export interface SeasonTeam {
+  id: number
+  season_sport_division_id: number
+  name: string
+  barangay: string
+  coach_name: string | null
+  manager_name: string | null
+  team_color: string | null
+  is_archived: boolean
+  created_at: string | null
+  updated_at: string | null
+}
+
 export async function getSeasonConfiguration(seasonId: number): Promise<SeasonConfiguration> {
   const response = await api.get<ApiResponse<SeasonConfiguration>>(`/seasons/${seasonId}/configuration`)
   return response.data.data
@@ -155,4 +168,98 @@ export async function removeDivisionFromSeasonSport(
   assignmentId: number,
 ): Promise<void> {
   await api.delete(`/seasons/sports/${seasonSportId}/divisions/${assignmentId}`)
+}
+
+export async function getTeamsForDivision(divisionAssignmentId: number): Promise<SeasonTeam[]> {
+  const response = await api.get<ApiResponse<SeasonTeam[]>>(
+    `/season-sport-divisions/${divisionAssignmentId}/teams`,
+  )
+  return response.data.data
+}
+
+export async function registerTeam(
+  divisionAssignmentId: number,
+  payload: Omit<SeasonTeam, 'id' | 'season_sport_division_id' | 'is_archived' | 'created_at' | 'updated_at'>,
+): Promise<SeasonTeam> {
+  const response = await api.post<ApiResponse<SeasonTeam>>(
+    `/season-sport-divisions/${divisionAssignmentId}/teams`,
+    payload,
+  )
+  return response.data.data
+}
+
+export interface Player {
+  id: number
+  first_name: string
+  middle_name: string | null
+  last_name: string
+  birthdate: string
+  gender: string
+  address: string
+  is_archived: boolean
+}
+
+export interface RosterEntry {
+  id: number
+  season_team_id: number
+  player_id: number
+  jersey_number: string
+  player: Player
+}
+
+export async function updateTeam(teamId: number, payload: Omit<SeasonTeam, 'id' | 'season_sport_division_id' | 'is_archived' | 'created_at' | 'updated_at'>): Promise<SeasonTeam> {
+  const response = await api.put<ApiResponse<SeasonTeam>>(`/season-teams/${teamId}`, payload)
+  return response.data.data
+}
+
+export async function setTeamArchived(teamId: number, is_archived: boolean): Promise<SeasonTeam> {
+  const response = await api.patch<ApiResponse<SeasonTeam>>(`/season-teams/${teamId}/archive`, { is_archived })
+  return response.data.data
+}
+
+export async function getPlayers(includeArchived = false): Promise<Player[]> {
+  const response = await api.get<ApiResponse<Player[]>>('/players/', {
+    params: { include_archived: includeArchived },
+  })
+  return response.data.data
+}
+
+export async function createPlayer(payload: Omit<Player, 'id' | 'is_archived'>): Promise<Player> {
+  const response = await api.post<ApiResponse<Player>>('/players/', payload)
+  return response.data.data
+}
+
+export async function updatePlayer(playerId: number, payload: Omit<Player, 'id' | 'is_archived'>): Promise<Player> {
+  const response = await api.put<ApiResponse<Player>>(`/players/${playerId}`, payload)
+  return response.data.data
+}
+
+export async function setPlayerArchived(playerId: number, is_archived: boolean): Promise<Player> {
+  const response = await api.patch<ApiResponse<Player>>(`/players/${playerId}/archive`, { is_archived })
+  return response.data.data
+}
+
+export async function getTeamRoster(teamId: number): Promise<RosterEntry[]> {
+  const response = await api.get<ApiResponse<RosterEntry[]>>(`/season-teams/${teamId}/roster`)
+  return response.data.data
+}
+
+export async function addPlayerToRoster(teamId: number, payload: {
+  player_id: number
+  jersey_number: string
+  voter_verified: boolean
+  voter_number: string | null
+  eligibility_notes: string | null
+}): Promise<RosterEntry> {
+  const response = await api.post<ApiResponse<RosterEntry>>(`/season-teams/${teamId}/roster`, payload)
+  return response.data.data
+}
+
+export async function updateRosterEntry(teamId: number, rosterId: number, jersey_number: string): Promise<RosterEntry> {
+  const response = await api.put<ApiResponse<RosterEntry>>(`/season-teams/${teamId}/roster/${rosterId}`, { jersey_number })
+  return response.data.data
+}
+
+export async function removePlayerFromRoster(teamId: number, rosterId: number): Promise<void> {
+  await api.delete(`/season-teams/${teamId}/roster/${rosterId}`)
 }

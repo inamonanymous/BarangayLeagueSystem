@@ -149,8 +149,8 @@ IMPLEMENTATION
 | 1. Authentication | Complete | Session login/logout/current-user; tested. |
 | 2. Users and Roles | Partial | Role-based access and Administrator-created users; list, edit, activation, and password reset remain. |
 | 3. Sports, Seasons, Divisions | Partial | Season lifecycle, reusable Sport/Division catalogs, and season assignments; stronger database enforcement and UX remain. |
-| 4. Venues, Players, Eligibility | Planned | No models or workflows yet. Eligibility is currently described as voter verification; reconcile it with the ERD's VoterRegistration entity. |
-| 5. Teams and Rosters | Planned | Depends on SeasonSportDivision configuration. |
+| 4. Venues, Players, Eligibility | Partial | Player CRUD/archive and season voter eligibility exist; VoterRegistration source and Venues remain. |
+| 5. Teams and Rosters | Partial | Team CRUD/archive and roster add/list/jersey update/remove exist; minimum roster activation rule remains. |
 | 6. Rounds and Games | Planned | No models or workflows yet. |
 | 7. Statistics and Standings | Planned | No models or workflows yet. |
 | 8. Playoff Brackets | Planned | No models or workflows yet. |

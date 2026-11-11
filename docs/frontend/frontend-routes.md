@@ -12,6 +12,8 @@ These are frontend routes. Open them on the frontend application's host (for exa
 | Dashboard | `/` | Public | Main application page; displays current account details when signed in. |
 | Seasons | `/seasons` | Public history; Administrator create form | View current and historical seasons; administrators can create a season. |
 | Season Configuration | `/seasons/:seasonId/configuration` | Public view; Administrator edits | View sports and divisions assigned to a season; administrators manage catalog entries and assignments. |
+| Players | `/players` | Administrators | Create, view, edit, archive, and restore permanent player profiles. |
+| Team Registration | Within `/seasons/:seasonId/configuration` | Public list; Administrator registration | View teams under each division; administrators register teams during the season's registration period. |
 | Add User | `/users/new` | Administrators | Create a user and assign a role. |
 | Unknown path | Any other path | N/A | Redirects to `/`. |
 
@@ -43,5 +45,22 @@ The frontend Axios client uses `/api/v1` as its base path and sends session cook
 | Assign division | `POST` | `/api/v1/seasons/sports/{seasonSportId}/divisions` | Add a division to a sport in a season. Administrator access is required. |
 | Remove sport assignment | `DELETE` | `/api/v1/seasons/{seasonId}/sports/{seasonSportId}` | Remove the season link and its division links; the catalog sport remains. Administrator access is required. |
 | Remove division assignment | `DELETE` | `/api/v1/seasons/sports/{seasonSportId}/divisions/{assignmentId}` | Remove a division link; the catalog division remains. Administrator access is required. |
+| List teams in division | `GET` | `/api/v1/season-sport-divisions/{assignmentId}/teams` | Retrieve teams for a season-specific division. |
+| Register team | `POST` | `/api/v1/season-sport-divisions/{assignmentId}/teams` | Register a team during the season's Registration status/window. Administrator access is required. |
+| Edit team | `PUT` | `/api/v1/season-teams/{teamId}` | Edit team details during Registration. Administrator access is required. |
+| Archive/restore team | `DELETE` / `PATCH` | `/api/v1/season-teams/{teamId}` / `/api/v1/season-teams/{teamId}/archive` | Soft-archive or restore a team. Administrator access is required. |
+| List players | `GET` | `/api/v1/players/` | List active player profiles; Administrators only. Use `?include_archived=true` to include archived profiles. |
+| Create player | `POST` | `/api/v1/players/` | Create a permanent player profile. Administrator access is required. |
+| Read player | `GET` | `/api/v1/players/{playerId}` | Retrieve a player profile. Administrator access is required. |
+| Edit player | `PUT` | `/api/v1/players/{playerId}` | Edit a permanent player profile. Administrator access is required. |
+| Archive/restore player | `DELETE` / `PATCH` | `/api/v1/players/{playerId}` / `/api/v1/players/{playerId}/archive` | Soft-archive or restore a player. Administrator access is required. |
+| List roster | `GET` | `/api/v1/season-teams/{teamId}/roster` | List roster entries for a team. |
+| Add roster player | `POST` | `/api/v1/season-teams/{teamId}/roster` | Assign a player and jersey number; adult voter verification is required. Administrator access is required. |
+| Edit roster entry | `PUT` | `/api/v1/season-teams/{teamId}/roster/{rosterId}` | Change a jersey number during Registration. Administrator access is required. |
+| Remove roster entry | `DELETE` | `/api/v1/season-teams/{teamId}/roster/{rosterId}` | Remove the player-team link without deleting the player. Administrator access is required. |
+| List players in roster | `GET` | `/api/v1/season-teams/{teamId}/roster` | Retrieve a team's roster. |
+| Add player to roster | `POST` | `/api/v1/season-teams/{teamId}/roster` | Add a player and jersey number; voter verification is required for adults. Administrator access is required. |
+| Update roster entry | `PUT` | `/api/v1/season-teams/{teamId}/roster/{rosterId}` | Update a jersey number during Registration. Administrator access is required. |
+| Remove roster entry | `DELETE` | `/api/v1/season-teams/{teamId}/roster/{rosterId}` | Remove the player-team link without deleting the Player. Administrator access is required. |
 
 Frontend API functions are grouped in `frontend/src/shared/api/`. The backend serves the API under `/api/v1`.

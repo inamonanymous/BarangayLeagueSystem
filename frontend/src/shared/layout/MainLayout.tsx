@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { CalendarDays, LayoutGrid, LogIn, LogOut, UserPlus } from 'lucide-react'
+import { CalendarDays, LayoutGrid, LogIn, LogOut, UserPlus, Users } from 'lucide-react'
 import { currentUserQueryKey, logoutUser } from '../api/auth'
 import { useCurrentUser } from '../../features/auth/useCurrentUser'
 
@@ -32,6 +32,11 @@ function MainLayout() {
           {user?.role === 'Administrator' ? (
             <NavLink to="/users/new" style={{ color: 'white', textDecoration: 'none' }}>
               <UserPlus size={18} /> Add user
+            </NavLink>
+          ) : null}
+          {user?.role === 'Administrator' ? (
+            <NavLink to="/players" style={{ color: 'white', textDecoration: 'none' }}>
+              <Users size={18} /> Players
             </NavLink>
           ) : null}
           {user ? (

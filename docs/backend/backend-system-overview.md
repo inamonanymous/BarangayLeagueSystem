@@ -23,8 +23,10 @@ This is the current implemented pattern, not a fully abstract Unit-of-Work archi
 - **Authentication and users:** login, logout, current-user lookup, session-based authentication, and Administrator-only user creation.
 - **Season lifecycle:** list/create, controlled status transitions, history retention, and single-active-season validation at the service layer.
 - **Sports and divisions:** catalog create/list/update/delete, plus season-specific sport and division assignments. Catalog deletion is rejected while referenced; season assignments may be edited only while the season is Planning or Registration.
+- **Teams and rosters:** public team/roster lists; Administrator team registration, team updates/archive, roster membership changes, jersey updates, and season-window validation.
+- **Players:** Administrator player profile create/read/update/archive/restore, with season voter eligibility recorded for adult roster additions.
 
-The current ORM models are User, Role, Season, Sport, Division, SeasonSport, and SeasonSportDivision. Teams, players, rosters, games, statistics, playoffs, reports, audit logging, idempotency storage, and system settings remain planned.
+The current ORM models are User, Role, Season, Sport, Division, SeasonSport, SeasonSportDivision, SeasonTeam, Player, Roster, and SeasonPlayerEligibility. Games, statistics, playoffs, reports, audit logging, idempotency storage, venues, and system settings remain planned.
 
 ## Main Packages
 

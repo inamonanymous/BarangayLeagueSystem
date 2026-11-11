@@ -8,8 +8,9 @@ class Config:
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key")
     SQLALCHEMY_DATABASE_URI = os.getenv(
         "DATABASE_URL",
-        "sqlite:///app.sqlite3",
+        "mysql+pymysql://root:@localhost:3306/barangayleague",
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SESSION_TYPE = "filesystem"
     TESTING = False
+    

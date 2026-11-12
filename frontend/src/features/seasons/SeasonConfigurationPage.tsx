@@ -7,14 +7,21 @@ import {
   assignSportToSeason,
   createCatalogDivision,
   createCatalogSport,
+  deleteCatalogDivision,
+  deleteCatalogSport,
   getCatalogDivisions,
   getCatalogSports,
   getSeasonConfiguration,
+  removeDivisionFromSeasonSport,
+  removeSportFromSeason,
   seasonsQueryKey,
+  updateCatalogDivision,
+  updateCatalogSport,
   type Division,
   type SeasonConfiguration,
 } from '../../shared/api/seasons'
 import { useCurrentUser } from '../auth/useCurrentUser'
+import SeasonTeamsSection from './SeasonTeamsSection'
 
 interface ApiErrorResponse {
   message?: string
@@ -44,6 +51,8 @@ function SeasonConfigurationPage() {
   const [maximumRosterSize, setMaximumRosterSize] = useState('15')
   const [selectedSport, setSelectedSport] = useState('')
   const [selectedDivisionBySport, setSelectedDivisionBySport] = useState<Record<number, string>>({})
+  const [editingSport, setEditingSport] = useState<{ id: number; name: string; description: string } | null>(null)
+  const [editingDivision, setEditingDivision] = useState<Division | null>(null)
   const [error, setError] = useState('')
   const isAdmin = currentUser?.role === 'Administrator'
 
@@ -90,6 +99,46 @@ function SeasonConfigurationPage() {
     },
     onError: handleMutationError,
   })
+  const updateSportMutation = useMutation({
+    mutationFn: (sport: { id: number; name: string; description: string }) =>
+      updateCatalogSport(sport.id, sport.name.trim(), sport.description.trim()),
+    onSuccess: async () => {
+      setEditingSport(null)
+      setError('')
+      await refreshConfiguration()
+    },
+    onError: handleMutationError,
+  })
+  const deleteSportMutation = useMutation({
+    mutationFn: deleteCatalogSport,
+    onSuccess: async () => {
+      setError('')
+      await refreshConfiguration()
+    },
+    onError: handleMutationError,
+  })
+  const updateDivisionMutation = useMutation({
+    mutationFn: (division: Division) => updateCatalogDivision(division.id, {
+      name: division.name.trim(),
+      gender_policy: division.gender_policy,
+      minimum_roster_size: division.minimum_roster_size,
+      maximum_roster_size: division.maximum_roster_size,
+    }),
+    onSuccess: async () => {
+      setEditingDivision(null)
+      setError('')
+      await refreshConfiguration()
+    },
+    onError: handleMutationError,
+  })
+  const deleteDivisionMutation = useMutation({
+    mutationFn: deleteCatalogDivision,
+    onSuccess: async () => {
+      setError('')
+      await refreshConfiguration()
+    },
+    onError: handleMutationError,
+  })
   const assignSportMutation = useMutation({
     mutationFn: () => assignSportToSeason(seasonId, Number(selectedSport)),
     onSuccess: async () => {
@@ -104,6 +153,23 @@ function SeasonConfigurationPage() {
       assignDivisionToSeasonSport(seasonSportId, divisionId),
     onSuccess: async () => {
       setSelectedDivisionBySport({})
+      setError('')
+      await refreshConfiguration()
+    },
+    onError: handleMutationError,
+  })
+  const removeSportMutation = useMutation({
+    mutationFn: (seasonSportId: number) => removeSportFromSeason(seasonId, seasonSportId),
+    onSuccess: async () => {
+      setError('')
+      await refreshConfiguration()
+    },
+    onError: handleMutationError,
+  })
+  const removeDivisionMutation = useMutation({
+    mutationFn: ({ seasonSportId, assignmentId }: { seasonSportId: number; assignmentId: number }) =>
+      removeDivisionFromSeasonSport(seasonSportId, assignmentId),
+    onSuccess: async () => {
       setError('')
       await refreshConfiguration()
     },
@@ -136,32 +202,50 @@ function SeasonConfigurationPage() {
         </p>
       </section>
 
-      <ol aria-label="Season configuration progress" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '0.75rem', margin: 0, padding: 0, listStyle: 'none' }}>
+      <ol aria-label="Season setup steps" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem', margin: 0, padding: 0, listStyle: 'none' }}>
         <li style={{ padding: '0.85rem', border: '1px solid #d5d9de', borderRadius: '6px', background: 'white' }}>
-          <strong>1. Catalog</strong>
+          <strong>1. Configure sports and divisions</strong>
           <p style={{ margin: '0.35rem 0 0', color: '#64748b' }}>
-            {sportsQuery.data?.length ?? 0} sports · {divisionsQuery.data?.length ?? 0} divisions available
+            {configuration.sports.length} sports and {assignedDivisionCount} divisions assigned.
           </p>
+          <a href="#season-divisions">Go to season divisions</a>
         </li>
         <li style={{ padding: '0.85rem', border: '1px solid #d5d9de', borderRadius: '6px', background: 'white' }}>
-          <strong>2. Season sports</strong>
-          <p style={{ margin: '0.35rem 0 0', color: '#64748b' }}>
-            {configuration.sports.length} assigned to this season
-          </p>
+          <strong>2. Register teams</strong>
+          {configuration.season.season_status === 'REGISTRATION' ? (
+            <p style={{ margin: '0.35rem 0 0', color: '#64748b' }}>
+              {assignedDivisionCount === 0
+                ? 'Assign a division first; its Add team action will appear below.'
+                : 'Use Add team under each division while the registration window is active.'}
+            </p>
+          ) : configuration.season.season_status === 'PLANNING' ? (
+            <p style={{ margin: '0.35rem 0 0', color: '#64748b' }}>
+              Move the season to Registration before adding teams. <Link to="/seasons">Manage season status</Link>
+            </p>
+          ) : (
+            <p style={{ margin: '0.35rem 0 0', color: '#64748b' }}>
+              Registration is closed. Teams are read-only.
+            </p>
+          )}
         </li>
         <li style={{ padding: '0.85rem', border: '1px solid #d5d9de', borderRadius: '6px', background: 'white' }}>
-          <strong>3. Divisions</strong>
+          <strong>3. Complete team rosters</strong>
           <p style={{ margin: '0.35rem 0 0', color: '#64748b' }}>
-            {assignedDivisionCount} assigned under season sports
+            Each active team shows its roster count and minimum. Complete the minimum before moving to Ongoing.
           </p>
+          <a href="#season-divisions">Review team rosters</a>
         </li>
       </ol>
 
       {!isAdmin ? (
-        <p role="status">You are viewing this configuration. An Administrator manages catalog entries and season assignments.</p>
+        <p role="status">
+          {currentUser
+            ? 'You are viewing this configuration. An Administrator manages catalog entries and season assignments.'
+            : <>Sign in as an Administrator to manage Sports and Divisions. <Link to="/login">Sign in</Link>.</>}
+        </p>
       ) : null}
 
-      {isAdmin && configurationOpen ? (
+      {isAdmin ? (
         <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
           <form
             onSubmit={(event) => { event.preventDefault(); setError(''); createSportMutation.mutate() }}
@@ -230,6 +314,75 @@ function SeasonConfigurationPage() {
         </section>
       ) : null}
 
+      {isAdmin ? (
+        <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+          <div style={{ padding: '1rem', background: 'white', border: '1px solid #d5d9de', borderRadius: '6px' }}>
+            <h3 style={{ marginTop: 0 }}>Sport catalog</h3>
+            {sportsQuery.data?.length ? sportsQuery.data.map((sport) => (
+              <div key={sport.id} style={{ padding: '0.65rem 0', borderTop: '1px solid #e2e8f0' }}>
+                {editingSport?.id === sport.id ? (
+                  <div style={{ display: 'grid', gap: '0.5rem' }}>
+                    <input aria-label="Sport name" value={editingSport.name} onChange={(event) => setEditingSport({ ...editingSport, name: event.target.value })} />
+                    <input aria-label="Sport description" value={editingSport.description} onChange={(event) => setEditingSport({ ...editingSport, description: event.target.value })} />
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button type="button" disabled={updateSportMutation.isPending} onClick={() => updateSportMutation.mutate(editingSport)}>Save</button>
+                      <button type="button" onClick={() => setEditingSport(null)}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'center' }}>
+                    <span>{sport.name}{sport.description ? ` · ${sport.description}` : ''}</span>
+                    <div style={{ display: 'flex', gap: '0.4rem' }}>
+                      <button type="button" onClick={() => setEditingSport({ id: sport.id, name: sport.name, description: sport.description ?? '' })}>Edit</button>
+                      <button type="button" disabled={deleteSportMutation.isPending} onClick={() => {
+                        if (window.confirm(`Delete ${sport.name}? This is only allowed if it is not assigned to a season.`)) deleteSportMutation.mutate(sport.id)
+                      }}>Delete</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )) : <p>No sports in the catalog.</p>}
+          </div>
+
+          <div style={{ padding: '1rem', background: 'white', border: '1px solid #d5d9de', borderRadius: '6px' }}>
+            <h3 style={{ marginTop: 0 }}>Division catalog</h3>
+            {divisionsQuery.data?.length ? divisionsQuery.data.map((division) => (
+              <div key={division.id} style={{ padding: '0.65rem 0', borderTop: '1px solid #e2e8f0' }}>
+                {editingDivision?.id === division.id ? (
+                  <div style={{ display: 'grid', gap: '0.5rem' }}>
+                    <input aria-label="Division name" value={editingDivision.name} onChange={(event) => setEditingDivision({ ...editingDivision, name: event.target.value })} />
+                    <select aria-label="Gender policy" value={editingDivision.gender_policy} onChange={(event) => setEditingDivision({ ...editingDivision, gender_policy: event.target.value as Division['gender_policy'] })}>
+                      <option value="ANY">Any</option>
+                      <option value="MALE_ONLY">Male only</option>
+                      <option value="FEMALE_ONLY">Female only</option>
+                      <option value="MIXED">Mixed</option>
+                    </select>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                      <input aria-label="Minimum roster size" type="number" min="1" value={editingDivision.minimum_roster_size} onChange={(event) => setEditingDivision({ ...editingDivision, minimum_roster_size: Number(event.target.value) })} />
+                      <input aria-label="Maximum roster size" type="number" min="1" value={editingDivision.maximum_roster_size} onChange={(event) => setEditingDivision({ ...editingDivision, maximum_roster_size: Number(event.target.value) })} />
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button type="button" disabled={updateDivisionMutation.isPending} onClick={() => updateDivisionMutation.mutate(editingDivision)}>Save</button>
+                      <button type="button" onClick={() => setEditingDivision(null)}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'center' }}>
+                    <span>{division.name} · {division.gender_policy} · roster {division.minimum_roster_size}-{division.maximum_roster_size}</span>
+                    <div style={{ display: 'flex', gap: '0.4rem' }}>
+                      <button type="button" onClick={() => setEditingDivision(division)}>Edit</button>
+                      <button type="button" disabled={deleteDivisionMutation.isPending} onClick={() => {
+                        if (window.confirm(`Delete ${division.name}? This is only allowed if it is not assigned to a season.`)) deleteDivisionMutation.mutate(division.id)
+                      }}>Delete</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )) : <p>No divisions in the catalog.</p>}
+          </div>
+        </section>
+      ) : null}
+
       {error ? <p role="alert" style={{ color: '#b91c1c' }}>{error}</p> : null}
       {!configurationOpen ? (
         <p role="status">
@@ -237,17 +390,53 @@ function SeasonConfigurationPage() {
         </p>
       ) : null}
 
-      <section style={{ display: 'grid', gap: '0.75rem' }}>
+      <section id="season-divisions" style={{ display: 'grid', gap: '0.75rem' }}>
         <h3 style={{ margin: 0 }}>Sports and divisions</h3>
         {configuration.sports.length === 0 ? <p>No sports are assigned to this season yet.</p> : null}
         {configuration.sports.map((entry) => (
           <article key={entry.id} style={{ padding: '1rem', background: 'white', border: '1px solid #d5d9de', borderRadius: '6px' }}>
             <h4 style={{ margin: '0 0 0.5rem' }}>{entry.sport.name}</h4>
             {entry.sport.description ? <p style={{ margin: '0 0 0.6rem', color: '#64748b' }}>{entry.sport.description}</p> : null}
+            {isAdmin && configurationOpen ? (
+              <button
+                type="button"
+                disabled={removeSportMutation.isPending}
+                onClick={() => {
+                  if (window.confirm(`Remove ${entry.sport.name} and its division assignments from this season? The catalog sport will remain.`)) {
+                    removeSportMutation.mutate(entry.id)
+                  }
+                }}
+              >
+                Remove from season
+              </button>
+            ) : null}
             {entry.divisions.length ? (
               <ul style={{ margin: '0.4rem 0', paddingLeft: '1.25rem' }}>
                 {entry.divisions.map((division) => (
-                  <li key={division.id}>{division.name} · {division.gender_policy} · roster {division.minimum_roster_size}-{division.maximum_roster_size}</li>
+                  <li key={division.id} style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span>{division.name} · {division.gender_policy} · roster {division.minimum_roster_size}-{division.maximum_roster_size}</span>
+                    {isAdmin && configurationOpen ? (
+                      <button
+                        type="button"
+                        disabled={removeDivisionMutation.isPending}
+                        onClick={() => {
+                          if (window.confirm(`Remove ${division.name} from ${entry.sport.name}? The catalog division will remain.`)) {
+                            removeDivisionMutation.mutate({ seasonSportId: entry.id, assignmentId: division.assignment_id })
+                          }
+                        }}
+                      >
+                        Remove
+                      </button>
+                    ) : null}
+                    <SeasonTeamsSection
+                      divisionAssignmentId={division.assignment_id}
+                      minimumRosterSize={division.minimum_roster_size}
+                      seasonStatus={configuration.season.season_status}
+                      registrationStartDate={configuration.season.registration_start_date}
+                      registrationEndDate={configuration.season.registration_end_date}
+                      isAdmin={isAdmin}
+                    />
+                  </li>
                 ))}
               </ul>
             ) : <p>No divisions assigned.</p>}

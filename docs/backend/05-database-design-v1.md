@@ -18,6 +18,8 @@ The database is designed to support:
 
 The system uses MySQL as its relational database.
 
+> **Implementation status:** This document describes the Version 1 target schema, not the current live database. Implemented tables, migration state, and known gaps are tracked in [implementation-alignment.md](implementation-alignment.md). Current ORM models cover users, roles, seasons, sports, divisions, season associations, season teams, players, rosters, and season-player eligibility; later competition and reporting tables remain planned.
+
 All entities shall use soft deletion through archival mechanisms instead of physical deletion.
 
 ---

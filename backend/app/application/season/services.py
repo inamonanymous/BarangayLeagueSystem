@@ -76,6 +76,20 @@ class SeasonService(BaseService):
             normalized_status,
             self.repository.has_active_season(exclude_id=season.id),
         )
+        if normalized_status == "ONGOING":
+            incomplete_teams = self.repository.list_teams_below_minimum_roster_size(
+                season.id
+            )
+            if incomplete_teams:
+                details = "; ".join(
+                    f"{team['team_name']} ({team['division_name']}): "
+                    f"{team['roster_count']}/{team['minimum_roster_size']} active players"
+                    for team in incomplete_teams
+                )
+                raise SeasonConflictError(
+                    "The season cannot move to Ongoing until every active team meets "
+                    f"its division's minimum roster size. Incomplete rosters: {details}."
+                )
 
         season.season_status = normalized_status
         try:

@@ -140,6 +140,8 @@ def remove_sport_from_season(season_id: int, season_sport_id: int):
         CatalogService().remove_sport_from_season(season_id, season_sport_id)
     except LookupError as exc:
         return error_response(str(exc), status_code=404)
+    except CatalogConflictError as exc:
+        return error_response(str(exc), status_code=409)
     except ValueError as exc:
         return error_response(str(exc), status_code=400)
     return success_response("Sport removed from season.")
@@ -155,6 +157,8 @@ def remove_division_from_season_sport(season_sport_id: int, assignment_id: int):
         )
     except LookupError as exc:
         return error_response(str(exc), status_code=404)
+    except CatalogConflictError as exc:
+        return error_response(str(exc), status_code=409)
     except ValueError as exc:
         return error_response(str(exc), status_code=400)
     return success_response("Division removed from season sport.")

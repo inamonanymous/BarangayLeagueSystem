@@ -21,3 +21,146 @@ body {
 a {
   color: inherit;
 }
+
+.season-team-list {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0.75rem 0;
+}
+
+.season-team-card {
+  padding: 1rem;
+  background: white;
+  border: 1px solid #d5d9de;
+  border-radius: 8px;
+}
+
+.season-team-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.season-team-card__name {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 1rem;
+}
+
+.season-team-card__details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.85rem;
+  margin-top: 0.4rem;
+  color: #475569;
+  font-size: 0.9rem;
+}
+
+.season-team-card__actions,
+.roster-entry__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.season-team-edit-form,
+.team-registration-form,
+.roster-add-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  align-items: end;
+  gap: 0.65rem;
+  margin: 0.75rem 0;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.status-badge--muted {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.muted-help {
+  margin: 0.5rem 0 0;
+  color: #64748b;
+  font-size: 0.875rem;
+}
+
+.team-roster {
+  margin-top: 0.85rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.team-roster__heading {
+  margin: 0 0 0.45rem;
+}
+
+.roster-readiness {
+  width: fit-content;
+  margin: 0 0 0.65rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.roster-readiness--ready {
+  background: #ccfbf1;
+  color: #115e59;
+}
+
+.roster-readiness--incomplete {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.roster-readiness--muted {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.roster-entries {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0.5rem 0 0.75rem;
+  padding: 0;
+  list-style: none;
+}
+
+.roster-entry {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  padding: 0.6rem 0.75rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+}
+
+.roster-entry__player {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.roster-entry__jersey {
+  min-width: 6rem;
+  color: #334155;
+  font-variant-numeric: tabular-nums;
+}

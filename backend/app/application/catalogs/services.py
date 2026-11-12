@@ -68,9 +68,9 @@ class CatalogService(BaseService):
     def create_division(
         self,
         name: str,
-        gender_policy: str,
         minimum_roster_size: int,
         maximum_roster_size: int,
+        gender_policy: str = "ANY",
     ) -> Division:
         normalized_name = self.policy.normalize_name(name, "Division")
         normalized_policy = self.policy.validate_division(
@@ -95,9 +95,9 @@ class CatalogService(BaseService):
         self,
         division_id: int,
         name: str,
-        gender_policy: str,
         minimum_roster_size: int,
         maximum_roster_size: int,
+        gender_policy: str = "ANY",
     ) -> Division:
         division = self.repository.get_division(division_id)
         if division is None:
@@ -141,7 +141,10 @@ class CatalogService(BaseService):
             for association in self.repository.season_sport_divisions(season_sport.id):
                 division = self.repository.get_division(association.division_id)
                 if division is not None:
-                    configured_divisions.append(division.to_dict())
+                    configured_divisions.append({
+                        "assignment_id": association.id,
+                        **division.to_dict(),
+                    })
             if sport is not None:
                 configured_sports.append({
                     **season_sport.to_dict(),
@@ -204,7 +207,15 @@ class CatalogService(BaseService):
         association = self.repository.get_season_sport(season_sport_id)
         if association is None or association.season_id != season_id:
             raise LookupError("Sport assignment not found for this season.")
-        for division_assignment in self.repository.season_sport_divisions(season_sport_id):
+        division_assignments = self.repository.season_sport_divisions(season_sport_id)
+        if any(
+            self.repository.division_assignment_has_teams(assignment.id)
+            for assignment in division_assignments
+        ):
+            raise CatalogConflictError(
+                "This sport has registered teams and cannot be removed from the season."
+            )
+        for division_assignment in division_assignments:
             self.repository.delete(division_assignment)
         self.repository.delete(association)
         self._commit("Sport assignment could not be removed.")
@@ -230,6 +241,10 @@ class CatalogService(BaseService):
         )
         if assignment is None:
             raise LookupError("Division assignment not found for this season sport.")
+        if self.repository.division_assignment_has_teams(assignment.id):
+            raise CatalogConflictError(
+                "This division has registered teams and cannot be removed from the season."
+            )
         self.repository.delete(assignment)
         self._commit("Division assignment could not be removed.")
 

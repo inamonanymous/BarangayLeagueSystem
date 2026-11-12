@@ -38,6 +38,7 @@ function SeasonsPage() {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [formError, setFormError] = useState('')
+  const [transitionError, setTransitionError] = useState<{ seasonId: number; message: string } | null>(null)
 
   const seasonsQuery = useQuery({
     queryKey: seasonsQueryKey,
@@ -61,8 +62,14 @@ function SeasonsPage() {
   const transitionMutation = useMutation({
     mutationFn: ({ season, status }: { season: Season; status: SeasonStatus }) =>
       transitionSeason(season.id, status),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: seasonsQueryKey }),
-    onError: (error: unknown) => setFormError(getErrorMessage(error)),
+    onSuccess: async () => {
+      setTransitionError(null)
+      await queryClient.invalidateQueries({ queryKey: seasonsQueryKey })
+    },
+    onError: (error: unknown, variables) => setTransitionError({
+      seasonId: variables.season.id,
+      message: getErrorMessage(error),
+    }),
   })
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -94,7 +101,7 @@ function SeasonsPage() {
           <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '0.9rem' }}>
             <label style={{ display: 'grid', gap: '0.35rem' }}>
               Season name
-              <input required minLength={1} maxLength={100} value={name} onChange={(event) => setName(event.target.value)} />
+              <input required minLength={1} maxLength={150} value={name} onChange={(event) => setName(event.target.value)} />
             </label>
             <label style={{ display: 'grid', gap: '0.35rem' }}>
               Year
@@ -162,7 +169,7 @@ function SeasonsPage() {
                               type="button"
                               disabled={transitionMutation.isPending}
                               onClick={() => {
-                                setFormError('')
+                                setTransitionError(null)
                                 transitionMutation.mutate({ season, status: nextSeasonStatus[season.season_status]! })
                               }}
                             >
@@ -174,7 +181,7 @@ function SeasonsPage() {
                               type="button"
                               disabled={transitionMutation.isPending}
                               onClick={() => {
-                                setFormError('')
+                                setTransitionError(null)
                                 transitionMutation.mutate({ season, status: 'ARCHIVED' })
                               }}
                             >
@@ -182,6 +189,11 @@ function SeasonsPage() {
                             </button>
                           ) : null}
                           {!nextSeasonStatus[season.season_status] && season.season_status !== 'PLANNING' && season.season_status !== 'REGISTRATION' ? 'Complete' : null}
+                          {transitionError?.seasonId === season.id ? (
+                            <p role="alert" style={{ flexBasis: '100%', color: '#b91c1c', margin: 0 }}>
+                              {transitionError.message}
+                            </p>
+                          ) : null}
                         </div>
                       </td>
                     ) : null}

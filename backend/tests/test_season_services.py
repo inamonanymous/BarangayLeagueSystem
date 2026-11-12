@@ -43,6 +43,14 @@ def test_create_season_persists_all_fields(season_service):
     assert season.season_status == "PLANNING"
 
 
+def test_season_name_supports_documented_150_character_limit(season_service):
+    name = "S" * 150
+
+    season = create_season(season_service, name=name)
+
+    assert season.name == name
+
+
 def test_list_seasons_includes_history_ordered_by_year(season_service):
     old_season = create_season(season_service, name="Old League")
     season_service.transition_season(old_season.id, "REGISTRATION")

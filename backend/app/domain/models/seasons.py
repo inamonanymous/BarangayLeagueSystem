@@ -4,7 +4,7 @@ class Season(db.Model):
     __tablename__ = "seasons"
 
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False, unique=True)
+    name = db.Column(db.String(150), nullable=False, unique=True)
     year = db.Column(db.Integer, nullable=False)
     registration_start_date = db.Column(db.Date, nullable=True)
     registration_end_date = db.Column(db.Date, nullable=True)

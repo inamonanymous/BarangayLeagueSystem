@@ -6,6 +6,8 @@ This document defines the entities, relationships, cardinalities, constraints, a
 
 The database design follows the business requirements defined in previous documents.
 
+The table definitions in [05-database-design-v1.md](05-database-design-v1.md) are the canonical target. This ERD describes that target schema; implementation status is tracked in [implementation-alignment.md](implementation-alignment.md).
+
 ---
 
 # Entity List
@@ -23,11 +25,10 @@ The database design follows the business requirements defined in previous docume
 - SeasonTeam
 - Roster
 - Player
-- VoterRegistration
+- SeasonPlayerEligibility
 
 ## Competition Management
 
-- Round
 - Game
 - Venue
 
@@ -39,7 +40,7 @@ The database design follows the business requirements defined in previous docume
 ## Playoffs
 
 - PlayoffBracket
-- PlayoffMatch
+- PlayoffSeed
 
 ## Security
 
@@ -50,7 +51,7 @@ The database design follows the business requirements defined in previous docume
 
 - AuditLog
 - ApiRequest
-- SystemSetting
+- SystemSettings
 
 ---
 
@@ -63,9 +64,12 @@ The database design follows the business requirements defined in previous docume
 | SeasonSport | SeasonSportDivision | One-to-Many |
 | Division | SeasonSportDivision | One-to-Many |
 | SeasonSportDivision | SeasonTeam | One-to-Many |
+| Season | SeasonPlayerEligibility | One-to-Many |
+| Player | SeasonPlayerEligibility | One-to-Many |
+| User | SeasonPlayerEligibility | One-to-Many (verified by) |
 | Player | Roster | One-to-Many |
 | SeasonTeam | Roster | One-to-Many |
-| Round | Game | One-to-Many |
+| SeasonSportDivision | Game | One-to-Many |
 | Venue | Game | One-to-Many |
 | SeasonTeam | Game | One-to-Many (Team A) |
 | SeasonTeam | Game | One-to-Many (Team B) |
@@ -73,8 +77,8 @@ The database design follows the business requirements defined in previous docume
 | Player | PlayerGameStatistic | One-to-Many |
 | StatisticType | PlayerGameStatistic | One-to-Many |
 | SeasonSportDivision | PlayoffBracket | One-to-Many |
-| PlayoffBracket | PlayoffMatch | One-to-Many |
-| SeasonTeam | PlayoffMatch | One-to-Many |
+| PlayoffBracket | PlayoffSeed | One-to-Many |
+| SeasonTeam | PlayoffSeed | One-to-Many |
 | Role | User | One-to-Many |
 | User | AuditLog | One-to-Many |
 | User | ApiRequest | One-to-Many |
@@ -187,14 +191,14 @@ per Sport per Season.
 
 ---
 
-## Round → Game
+## SeasonSportDivision → Game
 
-One Round contains many Games.
+One SeasonSportDivision contains many Games.
 
 Cardinality:
 
 ```text
-Round 1 ─── N Game
+SeasonSportDivision 1 ─── N Game
 ```
 
 ---
@@ -256,14 +260,14 @@ SeasonSportDivision 1 ─── N PlayoffBracket
 
 ---
 
-## PlayoffBracket → PlayoffMatch
+## PlayoffBracket → PlayoffSeed
 
-One Bracket contains many Matches.
+One Bracket contains many seeded teams.
 
 Cardinality:
 
 ```text
-PlayoffBracket 1 ─── N PlayoffMatch
+PlayoffBracket 1 ─── N PlayoffSeed
 ```
 
 ---
@@ -331,7 +335,7 @@ Each User has exactly one Role.
 ## SeasonTeam
 
 ```text
-(season_sport_division_id, team_name)
+(season_sport_division_id, name)
 ```
 
 ---
@@ -344,25 +348,12 @@ Each User has exactly one Role.
 
 ---
 
-## Roster
-
-```text
-(player_id, season_sport_division_id)
-```
-
-Ensures:
-
-```text
-One player per sport per season.
-```
-
 ---
 
 ## User
 
 ```text
 (username)
-(email)
 ```
 
 ---
@@ -371,24 +362,6 @@ One player per sport per season.
 
 ```text
 (name)
-```
-
----
-
-## StatisticType
-
-```text
-(code)
-```
-
-Examples:
-
-```text
-PTS
-REB
-AST
-KILL
-BLOCK
 ```
 
 ---
@@ -420,19 +393,20 @@ BLOCK
 | SeasonTeam | season_sport_division_id |
 | Roster | season_team_id |
 | Roster | player_id |
-| VoterRegistration | player_id |
-| Round | season_sport_division_id |
-| Game | round_id |
+| SeasonPlayerEligibility | season_id |
+| SeasonPlayerEligibility | player_id |
+| SeasonPlayerEligibility | verified_by |
+| Game | season_sport_division_id |
 | Game | venue_id |
-| Game | home_team_id |
-| Game | away_team_id |
+| Game | team_a_id |
+| Game | team_b_id |
+| Game | finalized_by |
 | PlayerGameStatistic | game_id |
 | PlayerGameStatistic | player_id |
 | PlayerGameStatistic | statistic_type_id |
 | PlayoffBracket | season_sport_division_id |
-| PlayoffMatch | playoff_bracket_id |
-| PlayoffMatch | team1_id |
-| PlayoffMatch | team2_id |
+| PlayoffSeed | playoff_bracket_id |
+| PlayoffSeed | season_team_id |
 | User | role_id |
 | AuditLog | user_id |
 | ApiRequest | user_id |
@@ -487,20 +461,24 @@ SeasonSport ||--o{ SeasonSportDivision : contains
 Division ||--o{ SeasonSportDivision : categorizes
 
 SeasonSportDivision ||--o{ SeasonTeam : contains
-SeasonSportDivision ||--o{ Round : contains
+SeasonSportDivision ||--o{ Game : schedules
 SeasonSportDivision ||--o{ PlayoffBracket : contains
 
 SeasonTeam ||--o{ Roster : owns
 Player ||--o{ Roster : participates
 
-Round ||--o{ Game : schedules
 Venue ||--o{ Game : hosts
 
 Game ||--o{ PlayerGameStatistic : records
 Player ||--o{ PlayerGameStatistic : produces
 StatisticType ||--o{ PlayerGameStatistic : defines
 
-PlayoffBracket ||--o{ PlayoffMatch : contains
+PlayoffBracket ||--o{ PlayoffSeed : seeds
+SeasonTeam ||--o{ PlayoffSeed : receives
+
+Season ||--o{ SeasonPlayerEligibility : defines
+Player ||--o{ SeasonPlayerEligibility : evaluated
+User ||--o{ SeasonPlayerEligibility : verifies
 
 Role ||--o{ User : assigned_to
 

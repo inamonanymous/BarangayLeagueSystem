@@ -1,187 +1,52 @@
-League Management System
-Documentation Roadmap
-==============================================
-
-BACKEND DOCUMENTATION
-----------------------------------------------
-
-[x] Project Overview
-
-[x] System Features
-
-[x] User Roles
-
-[x] Business Rules
-
-[x] Database Design
-
-[x] ERD
-
-[x] Architecture Design
-
-[x] Tech Stack
-
-[x] API Specification (Template)
-
-----------------------------------------------
-
-FRONTEND DOCUMENTATION
-----------------------------------------------
-
-[x] Frontend Overview
-
-[x] Frontend Architecture
-
-[ ] Frontend Tech Stack
-
-[ ] Frontend Coding Standards
-
-----------------------------------------------
-
-ENGINEERING GUIDELINES
-----------------------------------------------
-
-(Decision Trees removed)
-
-----------------------------------------------
-
-DIAGRAMS
-----------------------------------------------
-
-[x] Use Case Diagram
-
-[x] Component Diagram
-
-Activity Diagrams
-
-[ ] Authentication
-
-[ ] Create Season
-
-[ ] Register Team
-
-[ ] Create Player
-
-[ ] Manage Roster
-
-[ ] Schedule Game
-
-[ ] Encode Game Statistics
-
-[ ] Finalize Game
-
-Sequence Diagrams
-
-[ ] Authentication
-
-[ ] Create Player
-
-[ ] Register Team
-
-[ ] Schedule Game
-
-[ ] Encode Game Statistics
-
-[ ] Finalize Game
-
-[ ] View Standings
-
-----------------------------------------------
-
-FOUNDATION (Before Coding)
-----------------------------------------------
-
-Backend
-
-[x] Initialize Flask Project
-
-[x] Folder Structure
-
-[x] Configuration
-
-[x] Environment Variables
-
-[x] SQLAlchemy
-
-[x] Alembic (migration chain exists; fresh-install users-table prerequisite is tracked)
-
-[x] Marshmallow
-
-[x] Session Authentication
-
-[x] Error Handling
-
-[x] API Response Helpers
-
-[ ] Logging
-
-[x] Testing Setup
-
-Frontend
-
-[x] Initialize React Project
-
-[ ] Tailwind CSS
-
-[x] React Router
-
-[x] Axios
-
-[x] TanStack Query
-
-[ ] React Hook Form (dependency present; current forms use controlled inputs)
-
-[ ] TanStack Table
-
-[x] Lucide React
-
-[x] Folder Structure
-
-[ ] Shared Components (partial; shared API and layout exist)
-
-----------------------------------------------
-
-IMPLEMENTATION
-----------------------------------------------
-
-| Sprint | Status | Implemented scope / remaining |
-| --- | --- | --- |
-| 1. Authentication | Complete | Session login/logout/current-user; tested. |
-| 2. Users and Roles | Partial | Role-based access and Administrator-created users; list, edit, activation, and password reset remain. |
-| 3. Sports, Seasons, Divisions | Partial | Season lifecycle, reusable Sport/Division catalogs, and season assignments; stronger database enforcement and UX remain. |
-| 4. Venues, Players, Eligibility | Partial | Player CRUD/archive and season voter eligibility exist; VoterRegistration source and Venues remain. |
-| 5. Teams and Rosters | Partial | Team CRUD/archive and roster add/list/jersey update/remove exist; minimum roster activation rule remains. |
-| 6. Rounds and Games | Planned | No models or workflows yet. |
-| 7. Statistics and Standings | Planned | No models or workflows yet. |
-| 8. Playoff Brackets | Planned | No models or workflows yet. |
-| 9. Dashboard and Reports | Partial | A basic authenticated dashboard exists; league data/reporting remains planned. |
-
-----------------------------------------------
-
-TESTING
-----------------------------------------------
-
-[~] Unit Testing (auth, catalogs, and season slices covered; full domain coverage remains)
-
-[~] Integration Testing (implemented API slices covered; broader workflows remain)
-
-[ ] Functional Testing
-
-[ ] Regression Testing
-
-----------------------------------------------
-
-DEPLOYMENT
-----------------------------------------------
-
-[ ] Production Configuration
-
-[ ] MySQL Production Database
-
-[ ] Deploy Flask Backend
-
-[ ] Deploy React Frontend
-
-[ ] Documentation Update
-
-[ ] Version 1 Release
+# Project Roadmap
+
+Last reviewed: 2026-11-13
+
+This roadmap describes the current implementation and proposed next milestones. `[x]` means implemented, `[~]` means partial, and `[ ]` means planned. Design documents may describe features that are not implemented; see the [alignment tracker](backend/implementation-alignment.md) for known differences.
+
+## Current progress
+
+- [x] Flask API, React frontend, SQLAlchemy, migrations, and test setup.
+- [x] Session login/logout and current-user lookup.
+- [~] Users and roles: role checks and Administrator-created users exist; account management remains.
+- [~] Seasons, sports, and divisions: lifecycle, catalogs, and season assignments exist; stronger database enforcement and usability work remain.
+- [~] Players and eligibility: player CRUD/archive and adult voter verification exist; an independent voter-registration source and division eligibility rules remain unresolved.
+- [~] Teams and rosters: registration, edits, archive/restore, roster management, and the minimum-roster gate before Ongoing exist. Team archive behavior after registration remains a policy decision.
+- [x] Guided division-to-team-to-roster frontend, roster-readiness indicators, and development demo data.
+- [~] Dashboard: basic account dashboard exists; league reporting is planned.
+
+## Proposed implementation order
+
+1. **Complete and validate a test season**
+   - [ ] Resolve incomplete team rosters before moving the season to Ongoing.
+   - [ ] Decide post-registration team archive behavior and document outstanding eligibility rules.
+2. **Manual game scheduling**
+   - [ ] Agree on when scheduling is allowed, venue requirements, conflict rules, and whether Rounds belong in V1.
+   - [ ] Add the necessary database migrations, backend models, policies, services, API, and tests.
+   - [ ] Add a schedule creation and listing interface.
+3. **Results and standings**
+   - [ ] Record and finalize game scores; define correction/reopening rules.
+   - [ ] Calculate and display standings from finalized games.
+4. **Later competition features**
+   - [ ] Player statistics, playoffs, dashboard reporting, and venues as needed by the agreed scheduling design.
+
+## Foundation and documentation
+
+- [x] Project overview, features, roles, workflows, business rules, database design, ERD, architecture, tech stack, and API specification documents.
+- [x] Frontend overview, architecture, and route reference.
+- [x] Use-case and component diagrams.
+- [ ] Frontend coding standards and activity/sequence diagrams.
+- [ ] Logging, persistent API idempotency, and broader reusable frontend components.
+- [ ] Reconcile the planned API and design documents with implemented behavior as features change.
+
+## Testing and release readiness
+
+- [~] Unit and API integration tests cover implemented features; broader end-to-end testing remains.
+- [ ] Functional and regression testing of complete league workflows.
+- [ ] Resolve the fresh-database migration and first-administrator bootstrap gaps.
+- [ ] Enforce the one-active-season rule safely under concurrent requests.
+- [ ] Review soft-delete, eligibility, and production configuration decisions.
+- [ ] Remove tracked runtime/session files and generated dependencies; add appropriate ignore rules before publishing.
+- [ ] Production database, deployment, operational documentation, and V1 release.
+
+See the [backend checklist](backend/checklist.md) for a backend-focused breakdown.

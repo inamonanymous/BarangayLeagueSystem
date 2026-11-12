@@ -170,6 +170,30 @@ def test_roster_crud_unlinks_player_without_deleting_profile(client):
     assert Player.query.filter_by(id=player["id"]).one().is_archived is False
 
 
+def test_archived_team_rejects_roster_updates_and_removals(client):
+    login(client)
+    _, _, team_id = create_registration_team(client)
+    player = client.post("/api/v1/players/", json=player_payload()).get_json()["data"]
+    roster_url = f"/api/v1/season-teams/{team_id}/roster"
+    added = client.post(
+        roster_url,
+        json={"player_id": player["id"], "jersey_number": "7"},
+    )
+    roster_id = added.get_json()["data"]["id"]
+    archived = client.delete(f"/api/v1/season-teams/{team_id}")
+    assert archived.status_code == 200
+
+    updated = client.put(
+        f"{roster_url}/{roster_id}",
+        json={"jersey_number": "11"},
+    )
+    removed = client.delete(f"{roster_url}/{roster_id}")
+
+    assert updated.status_code == 400
+    assert removed.status_code == 400
+    assert Roster.query.count() == 1
+
+
 def test_adult_roster_player_requires_voter_verification(client):
     login(client)
     _, _, team_id = create_registration_team(client)

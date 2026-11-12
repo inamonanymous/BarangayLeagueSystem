@@ -115,6 +115,8 @@ class RosterService(BaseService):
         team = self.repository.get_team(team_id)
         if team is None:
             raise LookupError("Team not found.")
+        if team.is_archived:
+            raise ValueError("Roster entries cannot be changed for an archived team.")
         season, _, _ = self.repository.get_season_details(team)
         if season is None:
             raise LookupError("Season not found for team.")
@@ -138,6 +140,8 @@ class RosterService(BaseService):
         team = self.repository.get_team(team_id)
         if team is None:
             raise LookupError("Team not found.")
+        if team.is_archived:
+            raise ValueError("Roster entries cannot be changed for an archived team.")
         season, _, _ = self.repository.get_season_details(team)
         if season is None:
             raise LookupError("Season not found for team.")

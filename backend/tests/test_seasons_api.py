@@ -3,8 +3,15 @@ from datetime import date
 import pytest
 
 from app import create_app
+from app.domain.models.divisions import Division
+from app.domain.models.players import Player
 from app.domain.models.roles import Role
+from app.domain.models.rosters import Roster
+from app.domain.models.season_sport_divisions import SeasonSportDivision
+from app.domain.models.season_sports import SeasonSport
 from app.domain.models.seasons import Season
+from app.domain.models.season_teams import SeasonTeam
+from app.domain.models.sports import Sport
 from app.domain.models.users import User
 from app.extensions import db
 
@@ -45,6 +52,68 @@ def season_payload(name="Summer League 2026", status="PLANNING"):
         "start_date": "2026-05-01",
         "end_date": "2026-08-31",
     }
+
+
+def create_team_with_roster(
+    season_id,
+    *,
+    name,
+    minimum_roster_size,
+    roster_size,
+    archived_player_count=0,
+    is_archived=False,
+):
+    sport = Sport(name=f"{name} Sport")
+    division = Division(
+        name=f"{name} Division",
+        gender_policy="ANY",
+        minimum_roster_size=minimum_roster_size,
+        maximum_roster_size=max(minimum_roster_size, roster_size),
+    )
+    db.session.add_all([sport, division])
+    db.session.flush()
+
+    season_sport = SeasonSport(season_id=season_id, sport_id=sport.id)
+    db.session.add(season_sport)
+    db.session.flush()
+    assignment = SeasonSportDivision(
+        season_sport_id=season_sport.id,
+        division_id=division.id,
+    )
+    db.session.add(assignment)
+    db.session.flush()
+
+    team = SeasonTeam(
+        season_sport_division_id=assignment.id,
+        name=name,
+        barangay="Puting Kahoy",
+        is_archived=is_archived,
+    )
+    db.session.add(team)
+    db.session.flush()
+
+    for index in range(roster_size):
+        player = Player(
+            first_name=f"{name} Player {index}",
+            middle_name="",
+            last_name="Test",
+            birthdate=date(2000, 1, 1),
+            gender="ANY",
+            address="Puting Kahoy",
+            is_archived=index < archived_player_count,
+        )
+        db.session.add(player)
+        db.session.flush()
+        db.session.add(
+            Roster(
+                season_team_id=team.id,
+                player_id=player.id,
+                jersey_number=str(index + 1),
+            )
+        )
+
+    db.session.commit()
+    return team
 
 
 def test_season_history_is_public_and_includes_optional_dates(client):
@@ -170,6 +239,63 @@ def test_admin_can_advance_season_through_lifecycle(client):
         )
         assert response.status_code == 200
         assert response.get_json()["data"]["season_status"] == status
+
+
+def test_season_cannot_move_to_ongoing_with_incomplete_roster(client):
+    login(client)
+    created = client.post("/api/v1/seasons/", json=season_payload())
+    season_id = created.get_json()["data"]["id"]
+    client.patch(
+        f"/api/v1/seasons/{season_id}/status",
+        json={"season_status": "REGISTRATION"},
+    )
+    create_team_with_roster(
+        season_id,
+        name="Falcons",
+        minimum_roster_size=2,
+        roster_size=2,
+        archived_player_count=1,
+    )
+
+    response = client.patch(
+        f"/api/v1/seasons/{season_id}/status",
+        json={"season_status": "ONGOING"},
+    )
+
+    assert response.status_code == 409
+    assert "Falcons (Falcons Division): 1/2 active players" in response.get_json()["message"]
+    assert db.session.get(Season, season_id).season_status == "REGISTRATION"
+
+
+def test_season_can_move_to_ongoing_when_active_teams_are_ready(client):
+    login(client)
+    created = client.post("/api/v1/seasons/", json=season_payload())
+    season_id = created.get_json()["data"]["id"]
+    client.patch(
+        f"/api/v1/seasons/{season_id}/status",
+        json={"season_status": "REGISTRATION"},
+    )
+    create_team_with_roster(
+        season_id,
+        name="Falcons",
+        minimum_roster_size=2,
+        roster_size=2,
+    )
+    create_team_with_roster(
+        season_id,
+        name="Archived Team",
+        minimum_roster_size=5,
+        roster_size=0,
+        is_archived=True,
+    )
+
+    response = client.patch(
+        f"/api/v1/seasons/{season_id}/status",
+        json={"season_status": "ONGOING"},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["data"]["season_status"] == "ONGOING"
 
 
 def test_registration_window_requires_both_dates(client):

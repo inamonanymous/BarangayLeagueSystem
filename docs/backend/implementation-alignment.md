@@ -1,6 +1,6 @@
 # Implementation Alignment Tracker
 
-Last reviewed: 2026-11-12
+Last reviewed: 2026-11-13
 
 This file separates the documented Version 1 target from what is currently implemented. The detailed table definitions remain in [database design](05-database-design-v1.md); this tracker records implementation status and unresolved differences.
 
@@ -10,7 +10,7 @@ This file separates the documented Version 1 target from what is currently imple
 | --- | --- |
 | Authentication | Session login, logout, current-user lookup, password hashing, and active-account checks. |
 | User creation | Administrator-only create-user API with supported roles, password hashing, duplicate handling, and tests. User listing, editing, activation, and password reset are not implemented. |
-| Season lifecycle | Public history, Administrator create, controlled status transitions, date validation, and sequential one-active-season checks. |
+| Season lifecycle | Public history, Administrator create, controlled status transitions, date validation, sequential one-active-season checks, and a roster-readiness gate before moving to Ongoing. |
 | Sport and Division catalogs | Administrator create/read/update/delete. Catalog entries cannot be deleted while referenced. |
 | Season configuration | Assign catalog Sports to a Season; assign catalog Divisions under a Season-Sport; remove those assignments while the Season is Planning or Registration. |
 | Season Teams | Public list/register, update, and soft archive/restore. Registration requires Registration status and is constrained by the season window. Duplicate names are blocked per division. |
@@ -35,7 +35,7 @@ The remaining tables in the Version 1 database design are targets, not implement
 | Medium | Business rules and API specification describe Rounds, but the canonical database design has no Round table or `round_id` on Game. | Decide whether Rounds are part of Version 1; if yes, define the table and relation in the database design before implementing them. |
 | Medium | The Season completion transition does not require or set `end_date`, although the date is intended to describe competition dates. | Decide whether completion requires an end date or records one automatically, then encode and test that rule. |
 | Medium | Player gender is stored as short text because the docs call it an enum but do not define allowed values. | Agree on the permitted gender values and convert the column/schema to a validated enum if needed. |
-| Medium | Roster minimum size is documented but only the maximum is enforced during roster additions. | Decide when minimum roster size is required (for example, before moving a season to Ongoing), then enforce and test it at that workflow boundary. |
+| Medium | Roster minimum size is checked before moving a season to Ongoing; division gender rules and eligibility policy remain incomplete. | Resolved for roster minimum: transition checks each non-archived team's active players against its division minimum and reports incomplete rosters. Define and enforce gender/eligibility rules separately. |
 | Medium | SeasonTeam registration checks the current date against the registration window but does not persist a dedicated `registered_on` date. | Add an auditable registration date if later reports or eligibility rules need to prove when a team registered. |
 | Low | The full architecture document describes a Unit of Work, but current services commit via `db.session` directly. | Accept this as a deliberate current simplification or add a Unit of Work when transaction coordination grows. |
 | Low | Editing a shared Sport or Division changes the catalog record shown by every season assignment; no per-season snapshot is stored. | Confirm this shared-update behavior is intended. If historical values must be frozen, add versioned/snapshotted configuration before teams and games depend on it. |
@@ -54,8 +54,17 @@ The remaining tables in the Version 1 database design are targets, not implement
 
 The development database is confirmed at migration head `a6b93c1d5e80`, which includes Player, Roster, eligibility, and archive schema changes. The Season name-width change is included in its parent revision `d29e7b6ac145`.
 
+## Demo Teams and Players
+
+Refreshing the frontend or restarting the application does not run either seed script. In the development database, `DEMO - Registration Season 2027` must already exist, be in Registration, and be within its registration window. From `backend`, run `..\.venv\Scripts\python.exe seed_demo_teams.py --actor-id <administrator-user-id>`. Use the ID of an active Administrator. The script creates four Senior and three Junior sample basketball teams, with at least the division's minimum number of players on each, and skips existing demo roster entries on reruns. It does not populate other teams.
+
+After seeding, the script verifies the sample teams, players, roster links, and fictional adult voter details; it also reports any active team below its division minimum. Run the same checks without modifying data at any time using `..\.venv\Scripts\python.exe seed_demo_teams.py --check`. A sample-data verification error exits with an error; incomplete non-demo teams are reported separately because they also prevent the season from moving to Ongoing.
+
+All generated players are fictional and identifiable by `Demo` in their names and `DEMO -` in their addresses. Adult entries receive fictional `DEMO-` voter numbers marked as verified by the supplied Administrator, with a note that the details are not real. Never run this script against a production database. The script uses the configured development `DATABASE_URL`; service operations commit as they run, so an error may leave partial demo data. Resolve the error and rerun it.
+
 ## Recommended Next Work
 
-1. Define and enforce when the minimum roster size must be met before a team participates.
-2. Decide the allowed Player gender values and whether roster eligibility needs a separate voter-registration source.
-3. Before production, resolve the fresh-install migration prerequisite, concurrent active-season enforcement, and soft-delete policy recorded above.
+1. Validate a complete test season and decide the outstanding team-archive and player-eligibility policies.
+2. Design and build manual game scheduling, including when scheduling is permitted, conflict checks, venues, and the unresolved Round model.
+3. Add results, finalization, and standings, followed by statistics and playoffs.
+4. Before production or publishing, resolve the fresh-install and Administrator bootstrap gaps, concurrent active-season enforcement, soft-delete policy, and tracked runtime/session artifacts.

@@ -7,6 +7,7 @@ import { addPlayerToRoster, getPlayers, getTeamRoster, removePlayerFromRoster, u
 interface TeamRosterSectionProps {
   teamId: number
   teamArchived: boolean
+  minimumRosterSize: number
   seasonStatus: SeasonStatus
   registrationStartDate: string | null
   registrationEndDate: string | null
@@ -33,7 +34,7 @@ function localDate(): string {
   return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
 }
 
-function TeamRosterSection({ teamId, teamArchived, seasonStatus, registrationStartDate, registrationEndDate, isAdmin }: TeamRosterSectionProps) {
+function TeamRosterSection({ teamId, teamArchived, minimumRosterSize, seasonStatus, registrationStartDate, registrationEndDate, isAdmin }: TeamRosterSectionProps) {
   const queryClient = useQueryClient()
   const rosterKey = ['team-roster', teamId] as const
   const [playerId, setPlayerId] = useState('')
@@ -52,6 +53,7 @@ function TeamRosterSection({ teamId, teamArchived, seasonStatus, registrationSta
   const inWindow = !registrationStartDate || !registrationEndDate
     || (today >= registrationStartDate && today <= registrationEndDate)
   const canEdit = isAdmin && !teamArchived && seasonStatus === 'REGISTRATION' && inWindow
+  const activeRosterCount = rosterQuery.data?.filter((entry) => !entry.player.is_archived).length
 
   const refresh = () => Promise.all([
     queryClient.invalidateQueries({ queryKey: rosterKey }),
@@ -94,37 +96,54 @@ function TeamRosterSection({ teamId, teamArchived, seasonStatus, registrationSta
   })
 
   return (
-    <section style={{ marginTop: '0.75rem', paddingTop: '0.65rem', borderTop: '1px solid #e2e8f0' }}>
-      <h5 style={{ margin: '0 0 0.4rem' }}>Roster</h5>
+    <section className="team-roster">
+      <h5 className="team-roster__heading">Step 3: Build roster</h5>
+      {teamArchived ? (
+        <p role="status" className="roster-readiness roster-readiness--muted">Archived team; excluded from roster readiness.</p>
+      ) : activeRosterCount !== undefined ? (
+        <p
+          role="status"
+          className={`roster-readiness ${activeRosterCount >= minimumRosterSize ? 'roster-readiness--ready' : 'roster-readiness--incomplete'}`}
+        >
+          <strong>Roster readiness:</strong> {activeRosterCount}/{minimumRosterSize} active players — {activeRosterCount >= minimumRosterSize
+            ? 'Ready'
+            : `${minimumRosterSize - activeRosterCount} more needed`}
+        </p>
+      ) : null}
       {rosterQuery.isPending ? <p>Loading roster...</p> : null}
       {rosterQuery.isError ? <p role="alert">{errorMessage(rosterQuery.error)}</p> : null}
       {rosterQuery.data?.length === 0 ? <p>No players on this roster.</p> : null}
       {rosterQuery.data?.length ? (
-        <ul style={{ margin: '0.4rem 0', paddingLeft: '1.2rem' }}>
+        <ul className="roster-entries">
           {rosterQuery.data.map((entry) => (
-            <li key={entry.id} style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem', alignItems: 'center', marginBottom: '0.35rem' }}>
-              <span>{entry.player.first_name} {entry.player.middle_name ?? ''} {entry.player.last_name}</span>
-              {editingJersey?.rosterId === entry.id ? (
-                <>
-                  <input aria-label="Jersey number" maxLength={10} value={editingJersey.value} onChange={(event) => setEditingJersey({ ...editingJersey, value: event.target.value })} />
-                  <button type="button" disabled={updateMutation.isPending} onClick={() => updateMutation.mutate({ rosterId: entry.id, jersey: editingJersey.value })}>Save</button>
-                  <button type="button" onClick={() => setEditingJersey(null)}>Cancel</button>
-                </>
-              ) : (
-                <>
-                  <span>#{entry.jersey_number}</span>
-                  {canEdit ? <button type="button" onClick={() => setEditingJersey({ rosterId: entry.id, value: entry.jersey_number })}>Edit number</button> : null}
-                  {canEdit ? <button type="button" disabled={removeMutation.isPending} onClick={() => {
-                    if (window.confirm(`Remove ${entry.player.first_name} ${entry.player.last_name} from this roster? Their player profile will remain.`)) removeMutation.mutate(entry.id)
-                  }}>Remove</button> : null}
-                </>
-              )}
+            <li key={entry.id} className="roster-entry">
+              <div className="roster-entry__player">
+                <strong>{entry.player.first_name} {entry.player.middle_name ?? ''} {entry.player.last_name}</strong>
+                {entry.player.is_archived ? <span className="status-badge status-badge--muted">Archived profile</span> : null}
+              </div>
+              <div className="roster-entry__actions">
+                {editingJersey?.rosterId === entry.id ? (
+                  <>
+                    <input aria-label="Jersey number" maxLength={10} value={editingJersey.value} onChange={(event) => setEditingJersey({ ...editingJersey, value: event.target.value })} />
+                    <button type="button" disabled={updateMutation.isPending} onClick={() => updateMutation.mutate({ rosterId: entry.id, jersey: editingJersey.value })}>Save</button>
+                    <button type="button" onClick={() => setEditingJersey(null)}>Cancel</button>
+                  </>
+                ) : (
+                  <>
+                    <span className="roster-entry__jersey">Jersey #{entry.jersey_number}</span>
+                    {canEdit ? <button type="button" onClick={() => setEditingJersey({ rosterId: entry.id, value: entry.jersey_number })}>Edit number</button> : null}
+                    {canEdit ? <button type="button" disabled={removeMutation.isPending} onClick={() => {
+                      if (window.confirm(`Remove ${entry.player.first_name} ${entry.player.last_name} from this roster? Their player profile will remain.`)) removeMutation.mutate(entry.id)
+                    }}>Remove</button> : null}
+                  </>
+                )}
+              </div>
             </li>
           ))}
         </ul>
       ) : null}
       {canEdit ? (
-        <form onSubmit={(event) => { event.preventDefault(); setError(''); addMutation.mutate() }} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.5rem', alignItems: 'end', marginTop: '0.65rem' }}>
+        <form onSubmit={(event) => { event.preventDefault(); setError(''); addMutation.mutate() }} className="roster-add-form">
           <label style={{ display: 'grid', gap: '0.25rem' }}>Player
             <select required value={playerId} onChange={(event) => setPlayerId(event.target.value)}>
               <option value="">Select player</option>

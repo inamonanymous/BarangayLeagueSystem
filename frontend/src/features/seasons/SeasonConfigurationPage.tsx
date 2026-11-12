@@ -202,24 +202,38 @@ function SeasonConfigurationPage() {
         </p>
       </section>
 
-      <ol aria-label="Season configuration progress" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '0.75rem', margin: 0, padding: 0, listStyle: 'none' }}>
+      <ol aria-label="Season setup steps" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem', margin: 0, padding: 0, listStyle: 'none' }}>
         <li style={{ padding: '0.85rem', border: '1px solid #d5d9de', borderRadius: '6px', background: 'white' }}>
-          <strong>1. Catalog</strong>
+          <strong>1. Configure sports and divisions</strong>
           <p style={{ margin: '0.35rem 0 0', color: '#64748b' }}>
-            {sportsQuery.data?.length ?? 0} sports · {divisionsQuery.data?.length ?? 0} divisions available
+            {configuration.sports.length} sports and {assignedDivisionCount} divisions assigned.
           </p>
+          <a href="#season-divisions">Go to season divisions</a>
         </li>
         <li style={{ padding: '0.85rem', border: '1px solid #d5d9de', borderRadius: '6px', background: 'white' }}>
-          <strong>2. Season sports</strong>
-          <p style={{ margin: '0.35rem 0 0', color: '#64748b' }}>
-            {configuration.sports.length} assigned to this season
-          </p>
+          <strong>2. Register teams</strong>
+          {configuration.season.season_status === 'REGISTRATION' ? (
+            <p style={{ margin: '0.35rem 0 0', color: '#64748b' }}>
+              {assignedDivisionCount === 0
+                ? 'Assign a division first; its Add team action will appear below.'
+                : 'Use Add team under each division while the registration window is active.'}
+            </p>
+          ) : configuration.season.season_status === 'PLANNING' ? (
+            <p style={{ margin: '0.35rem 0 0', color: '#64748b' }}>
+              Move the season to Registration before adding teams. <Link to="/seasons">Manage season status</Link>
+            </p>
+          ) : (
+            <p style={{ margin: '0.35rem 0 0', color: '#64748b' }}>
+              Registration is closed. Teams are read-only.
+            </p>
+          )}
         </li>
         <li style={{ padding: '0.85rem', border: '1px solid #d5d9de', borderRadius: '6px', background: 'white' }}>
-          <strong>3. Divisions</strong>
+          <strong>3. Complete team rosters</strong>
           <p style={{ margin: '0.35rem 0 0', color: '#64748b' }}>
-            {assignedDivisionCount} assigned under season sports
+            Each active team shows its roster count and minimum. Complete the minimum before moving to Ongoing.
           </p>
+          <a href="#season-divisions">Review team rosters</a>
         </li>
       </ol>
 
@@ -376,7 +390,7 @@ function SeasonConfigurationPage() {
         </p>
       ) : null}
 
-      <section style={{ display: 'grid', gap: '0.75rem' }}>
+      <section id="season-divisions" style={{ display: 'grid', gap: '0.75rem' }}>
         <h3 style={{ margin: 0 }}>Sports and divisions</h3>
         {configuration.sports.length === 0 ? <p>No sports are assigned to this season yet.</p> : null}
         {configuration.sports.map((entry) => (
@@ -416,6 +430,7 @@ function SeasonConfigurationPage() {
                     ) : null}
                     <SeasonTeamsSection
                       divisionAssignmentId={division.assignment_id}
+                      minimumRosterSize={division.minimum_roster_size}
                       seasonStatus={configuration.season.season_status}
                       registrationStartDate={configuration.season.registration_start_date}
                       registrationEndDate={configuration.season.registration_end_date}

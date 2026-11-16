@@ -1,0 +1,24 @@
+@startuml
+title Player profile management
+skinparam shadowing false
+start
+:Administrator opens Players;
+if (Action?) then (create or edit)
+  :Validate and normalize name,\nbirthdate, gender, and address;
+  if (Invalid, duplicate, or archived profile being edited?) then (yes)
+    :Reject;
+    stop
+  else (no)
+    :Create or update player profile;
+  endif
+else (archive or restore)
+  :Update archive flag, actor, and timestamp;
+endif
+:Commit and refresh affected queries;
+stop
+legend bottom
+  Duplicate identity uses name and birthdate.
+  Archiving preserves roster links; archived profiles
+  do not count for readiness or player availability.
+endlegend
+@enduml

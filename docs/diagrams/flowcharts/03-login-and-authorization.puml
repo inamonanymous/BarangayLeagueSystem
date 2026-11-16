@@ -1,0 +1,27 @@
+@startuml
+title Login and protected actions
+skinparam shadowing false
+start
+:Submit username and password;
+:Auth route calls AuthService;
+:Repository looks up user;
+if (Password correct and account active?) then (yes)
+  :Store user ID, username, and role in session;
+  :Frontend requests current user;
+else (no)
+  :Reject login;
+  stop
+endif
+if (Administrator action requested?) then (yes)
+  :Decorator reloads active user;
+  if (User is an Administrator?) then (yes)
+    :Run protected route;
+  else (no)
+    :Return authentication or permission error;
+  endif
+else (no)
+  :Use public endpoint or other applicable access rule;
+endif
+:Logout clears session when requested;
+stop
+@enduml

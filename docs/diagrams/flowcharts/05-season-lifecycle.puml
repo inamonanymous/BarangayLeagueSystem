@@ -1,0 +1,44 @@
+@startuml
+title Season creation and lifecycle
+skinparam shadowing false
+start
+:Administrator creates season;
+:Validate name, year, dates, and duplicate name;
+if (Valid?) then (yes)
+  :Save with PLANNING status;
+else (no)
+  :Return an error;
+  stop
+endif
+if (Archive from Planning?) then (yes)
+  :Set ARCHIVED;
+  stop
+else (open registration)
+  :Check for another active season;
+  if (Registration allowed?) then (yes)
+    :Set REGISTRATION;
+  else (no)
+    :Reject transition;
+    stop
+  endif
+endif
+if (Archive from Registration?) then (yes)
+  :Set ARCHIVED;
+  stop
+else (request start)
+  :Check other active seasons and roster readiness;
+  if (Ongoing allowed?) then (yes)
+    :Set ONGOING;
+  else (no)
+    :Reject transition;
+    stop
+  endif
+endif
+:Set COMPLETED;
+:Set ARCHIVED;
+stop
+legend bottom
+  The single-active-season check is application-level
+  and is not safe against all concurrent activations.
+endlegend
+@enduml

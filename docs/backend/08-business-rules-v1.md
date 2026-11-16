@@ -1,5 +1,10 @@
 # Business Rules
 
+> **Version 1 target rules:** Not every rule below is enforced today. For
+> implemented behavior and unresolved decisions, see the
+> [implementation tracker](implementation-alignment.md) and
+> [current feature flowcharts](../diagrams/system-feature-flowcharts.md).
+
 ## Overview
 
 Business rules define the policies, constraints, and operational guidelines of the League Management System.
@@ -258,6 +263,15 @@ Removing a player from a roster shall not delete the player's permanent record.
 ---
 
 # Schedule Rules
+
+Current scheduling implements BR-024, BR-026, and BR-027 for Ongoing seasons.
+Games have start/end local times; overlaps are blocked for either team or the
+same normalized venue name. BR-023 and BR-025 remain deferred; games currently
+do not have a Round. Managed venues and game lifecycle rules remain planned.
+Administrators can reschedule a game only while the season is Ongoing and before
+its original start; the new start must be in the future according to the
+server's local clock. Rescheduling retains the teams and applies the same overlap
+checks, excluding the game being edited.
 
 ## BR-023
 

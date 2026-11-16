@@ -3,14 +3,11 @@ from datetime import date, datetime
 from sqlalchemy.exc import IntegrityError
 
 from app.application.common.utils.base_classes import BaseService
-from app.application.teams.policies import TeamPolicy
+from app.application.teams.policies import SeasonTeamConflictError as SeasonTeamConflictError, TeamPolicy
 from app.domain.models.season_teams import SeasonTeam
 from app.extensions import db
 from app.infrastructure.database.season_team_repository import SeasonTeamRepository
-
-
-class SeasonTeamConflictError(ValueError):
-    pass
+from app.infrastructure.database.unit_of_work import SqlAlchemyUnitOfWork
 
 
 class SeasonTeamService(BaseService):
@@ -71,26 +68,34 @@ class SeasonTeamService(BaseService):
         return team
 
     def set_archived(self, team_id: int, archived: bool, actor_id: int) -> SeasonTeam:
-        team = self.repository.get_team(team_id)
-        if team is None:
-            raise LookupError("Team not found.")
-        if not archived and team.is_archived:
-            assignment = self.repository.get_division_assignment(team.season_sport_division_id)
-            if assignment is None:
-                raise LookupError("Season division assignment not found.")
-            season = self.repository.get_season_for_assignment(assignment)
-            if season is None:
-                raise LookupError("Season not found for team.")
-            self.policy.validate_registration(
-                season_status=season.season_status,
-                registration_start_date=season.registration_start_date,
-                registration_end_date=season.registration_end_date,
-                registered_on=date.today(),
-            )
-        team.is_archived = archived
-        team.archived_at = datetime.utcnow() if archived else None
-        team.archived_by = actor_id if archived else None
-        self._commit("Team archive state could not be updated.")
+        try:
+            with SqlAlchemyUnitOfWork():
+                self.repository.lock_team_roster(team_id)
+                team = self.repository.get_team_for_update(team_id)
+                if team is None:
+                    raise LookupError("Team not found.")
+                assignment = self.repository.get_division_assignment(team.season_sport_division_id)
+                if assignment is None:
+                    raise LookupError("Season division assignment not found.")
+                season = self.repository.get_season_for_assignment(assignment)
+                if season is None:
+                    raise LookupError("Season not found for team.")
+                self.policy.validate_archive_status(season.season_status)
+                if not archived and team.is_archived:
+                    self.policy.validate_registration(
+                        season_status=season.season_status,
+                        registration_start_date=season.registration_start_date,
+                        registration_end_date=season.registration_end_date,
+                        registered_on=date.today(),
+                    )
+                    self.policy.validate_restore_conflicts(
+                        self.repository.list_restore_conflicts(team_id, assignment.season_sport_id)
+                    )
+                team.is_archived = archived
+                team.archived_at = datetime.utcnow() if archived else None
+                team.archived_by = actor_id if archived else None
+        except IntegrityError as exc:
+            raise SeasonTeamConflictError("Team archive state could not be updated.") from exc
         return team
 
     def register_team(

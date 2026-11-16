@@ -1,5 +1,11 @@
 # Architecture Design
 
+> **Architecture plan:** This is a target design with illustrative code, not a
+> description of every current module. Current services commit through
+> `db.session`; the game service uses a policy and repository. See the
+> [backend overview](backend-system-overview.md) and
+> [implementation tracker](implementation-alignment.md).
+
 ## Overview
 
 This document defines the software architecture of the League Management System.

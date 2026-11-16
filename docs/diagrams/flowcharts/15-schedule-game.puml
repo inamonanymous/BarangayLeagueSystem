@@ -1,0 +1,32 @@
+@startuml
+title Schedule a game
+skinparam shadowing false
+start
+:Administrator enters teams, venue, start, and end;
+:Route checks Administrator and schema;
+:Validate venue and local whole-second times;
+if (Two different teams and end after start?) then (yes)
+else (no)
+  :Reject;
+  stop
+endif
+:Acquire singleton schedule lock;
+if (Season Ongoing and teams active in selected division?) then (yes)
+else (no)
+  :Reject and roll back;
+  stop
+endif
+:Check team or normalized venue overlaps;
+if (Overlap found?) then (yes)
+  :Roll back and return conflict;
+else (no)
+  :Create game and commit;
+  :Refresh division game list;
+endif
+stop
+legend bottom
+  Adjacent intervals are allowed. Venue conflicts are
+  checked across divisions and seasons. Creation does
+  not currently require a future start.
+endlegend
+@enduml

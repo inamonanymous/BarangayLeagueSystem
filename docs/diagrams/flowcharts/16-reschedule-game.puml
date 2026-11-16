@@ -1,0 +1,34 @@
+@startuml
+title Reschedule a game
+skinparam shadowing false
+start
+:Administrator selects Reschedule;
+:Preload venue, start, and end;
+:Submit venue and times without changing teams;
+:Route checks Administrator and schema;
+:Validate venue and local whole-second times;
+:Acquire singleton schedule lock and load game;
+if (Season Ongoing and original start still future?) then (yes)
+else (no)
+  :Reject and roll back;
+  stop
+endif
+if (New start is in the future?) then (yes)
+else (no)
+  :Reject and roll back;
+  stop
+endif
+:Check team and venue overlaps, excluding this game;
+if (Overlap found?) then (yes)
+  :Roll back and return conflict;
+else (no)
+  :Update venue and times, then commit;
+  :Refresh division game list;
+endif
+stop
+legend bottom
+  Future checks use the server's local clock.
+  Existing teams are retained and their archive status
+  is not revalidated.
+endlegend
+@enduml

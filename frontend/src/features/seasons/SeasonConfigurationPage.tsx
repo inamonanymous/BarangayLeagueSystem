@@ -21,7 +21,10 @@ import {
   type SeasonConfiguration,
 } from '../../shared/api/seasons'
 import { useCurrentUser } from '../auth/useCurrentUser'
+import SelectionTabs, { selectedTabId } from '../../shared/components/SelectionTabs'
 import SeasonTeamsSection from './SeasonTeamsSection'
+import DivisionScheduleSection from './DivisionScheduleSection'
+import { seasonDataStaleTime } from './queryOptions'
 
 interface ApiErrorResponse {
   message?: string
@@ -51,6 +54,8 @@ function SeasonConfigurationPage() {
   const [maximumRosterSize, setMaximumRosterSize] = useState('15')
   const [selectedSport, setSelectedSport] = useState('')
   const [selectedDivisionBySport, setSelectedDivisionBySport] = useState<Record<number, string>>({})
+  const [selectedSportTab, setSelectedSportTab] = useState<number | null>(null)
+  const [selectedDivisionTabBySport, setSelectedDivisionTabBySport] = useState<Record<number, number>>({})
   const [editingSport, setEditingSport] = useState<{ id: number; name: string; description: string } | null>(null)
   const [editingDivision, setEditingDivision] = useState<Division | null>(null)
   const [error, setError] = useState('')
@@ -60,14 +65,30 @@ function SeasonConfigurationPage() {
     queryKey: [...seasonsQueryKey, seasonId, 'configuration'],
     queryFn: () => getSeasonConfiguration(seasonId),
     enabled: Number.isInteger(seasonId) && seasonId > 0,
+    staleTime: seasonDataStaleTime,
   })
-  const sportsQuery = useQuery({ queryKey: ['catalog', 'sports'], queryFn: getCatalogSports })
-  const divisionsQuery = useQuery({ queryKey: ['catalog', 'divisions'], queryFn: getCatalogDivisions })
+  const sportsQuery = useQuery({ queryKey: ['catalog', 'sports'], queryFn: getCatalogSports, staleTime: seasonDataStaleTime })
+  const divisionsQuery = useQuery({ queryKey: ['catalog', 'divisions'], queryFn: getCatalogDivisions, staleTime: seasonDataStaleTime })
 
   function refreshConfiguration() {
+    return queryClient.invalidateQueries({ queryKey: [...seasonsQueryKey, seasonId, 'configuration'] })
+  }
+
+  function refreshCatalog(type: 'sports' | 'divisions') {
     return Promise.all([
-      queryClient.invalidateQueries({ queryKey: [...seasonsQueryKey, seasonId, 'configuration'] }),
-      queryClient.invalidateQueries({ queryKey: ['catalog'] }),
+      queryClient.invalidateQueries({
+        queryKey: seasonsQueryKey,
+        predicate: (query) => query.queryKey[2] === 'configuration',
+      }),
+      queryClient.invalidateQueries({ queryKey: ['catalog', type] }),
+    ])
+  }
+
+  function refreshPageData() {
+    return Promise.all([
+      refreshConfiguration(),
+      ...[['catalog'], ['season-teams'], ['team-roster'], ['players', 'available'], ['division-games']]
+        .map((queryKey) => queryClient.invalidateQueries({ queryKey })),
     ])
   }
 
@@ -81,7 +102,7 @@ function SeasonConfigurationPage() {
       setSportName('')
       setSportDescription('')
       setError('')
-      await refreshConfiguration()
+      await queryClient.invalidateQueries({ queryKey: ['catalog', 'sports'] })
     },
     onError: handleMutationError,
   })
@@ -95,7 +116,7 @@ function SeasonConfigurationPage() {
     onSuccess: async () => {
       setDivisionName('')
       setError('')
-      await refreshConfiguration()
+      await queryClient.invalidateQueries({ queryKey: ['catalog', 'divisions'] })
     },
     onError: handleMutationError,
   })
@@ -105,7 +126,7 @@ function SeasonConfigurationPage() {
     onSuccess: async () => {
       setEditingSport(null)
       setError('')
-      await refreshConfiguration()
+      await refreshCatalog('sports')
     },
     onError: handleMutationError,
   })
@@ -113,7 +134,7 @@ function SeasonConfigurationPage() {
     mutationFn: deleteCatalogSport,
     onSuccess: async () => {
       setError('')
-      await refreshConfiguration()
+      await refreshCatalog('sports')
     },
     onError: handleMutationError,
   })
@@ -127,7 +148,7 @@ function SeasonConfigurationPage() {
     onSuccess: async () => {
       setEditingDivision(null)
       setError('')
-      await refreshConfiguration()
+      await refreshCatalog('divisions')
     },
     onError: handleMutationError,
   })
@@ -135,7 +156,7 @@ function SeasonConfigurationPage() {
     mutationFn: deleteCatalogDivision,
     onSuccess: async () => {
       setError('')
-      await refreshConfiguration()
+      await refreshCatalog('divisions')
     },
     onError: handleMutationError,
   })
@@ -184,6 +205,7 @@ function SeasonConfigurationPage() {
     (count, entry) => count + entry.divisions.length,
     0,
   ) ?? 0
+  const activeSportId = selectedTabId(configuration?.sports.map((entry) => entry.id) ?? [], selectedSportTab)
 
   if (!Number.isInteger(seasonId) || seasonId < 1) {
     return <p role="alert">Invalid season ID.</p>
@@ -200,6 +222,8 @@ function SeasonConfigurationPage() {
         <p style={{ margin: 0, color: '#64748b' }}>
           {configuration.season.year} · {configuration.season.season_status}
         </p>
+        <button type="button" onClick={() => { void refreshPageData() }}>Refresh data</button>
+        <p className="muted-help">Data is reused for one minute; revisit a tab or return to this page to check again. Use Refresh data to check now.</p>
       </section>
 
       <ol aria-label="Season setup steps" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem', margin: 0, padding: 0, listStyle: 'none' }}>
@@ -386,87 +410,117 @@ function SeasonConfigurationPage() {
       {error ? <p role="alert" style={{ color: '#b91c1c' }}>{error}</p> : null}
       {!configurationOpen ? (
         <p role="status">
-          This season is {configuration.season.season_status.toLowerCase()}. Its configuration is read-only so the season record remains stable for history.
+          This season is {configuration.season.season_status.toLowerCase()}. Sports and division assignments are read-only.
         </p>
       ) : null}
 
       <section id="season-divisions" style={{ display: 'grid', gap: '0.75rem' }}>
         <h3 style={{ margin: 0 }}>Sports and divisions</h3>
+        <p className="muted-help">Choose a sport, division, and team to view one roster at a time.</p>
         {configuration.sports.length === 0 ? <p>No sports are assigned to this season yet.</p> : null}
-        {configuration.sports.map((entry) => (
-          <article key={entry.id} style={{ padding: '1rem', background: 'white', border: '1px solid #d5d9de', borderRadius: '6px' }}>
-            <h4 style={{ margin: '0 0 0.5rem' }}>{entry.sport.name}</h4>
-            {entry.sport.description ? <p style={{ margin: '0 0 0.6rem', color: '#64748b' }}>{entry.sport.description}</p> : null}
-            {isAdmin && configurationOpen ? (
-              <button
-                type="button"
-                disabled={removeSportMutation.isPending}
-                onClick={() => {
-                  if (window.confirm(`Remove ${entry.sport.name} and its division assignments from this season? The catalog sport will remain.`)) {
-                    removeSportMutation.mutate(entry.id)
-                  }
-                }}
-              >
-                Remove from season
-              </button>
-            ) : null}
-            {entry.divisions.length ? (
-              <ul style={{ margin: '0.4rem 0', paddingLeft: '1.25rem' }}>
-                {entry.divisions.map((division) => (
-                  <li key={division.id} style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <span>{division.name} · {division.gender_policy} · roster {division.minimum_roster_size}-{division.maximum_roster_size}</span>
-                    {isAdmin && configurationOpen ? (
-                      <button
-                        type="button"
-                        disabled={removeDivisionMutation.isPending}
-                        onClick={() => {
-                          if (window.confirm(`Remove ${division.name} from ${entry.sport.name}? The catalog division will remain.`)) {
-                            removeDivisionMutation.mutate({ seasonSportId: entry.id, assignmentId: division.assignment_id })
-                          }
-                        }}
-                      >
-                        Remove
-                      </button>
-                    ) : null}
-                    <SeasonTeamsSection
-                      divisionAssignmentId={division.assignment_id}
-                      minimumRosterSize={division.minimum_roster_size}
-                      seasonStatus={configuration.season.season_status}
-                      registrationStartDate={configuration.season.registration_start_date}
-                      registrationEndDate={configuration.season.registration_end_date}
-                      isAdmin={isAdmin}
-                    />
-                  </li>
-                ))}
-              </ul>
-            ) : <p>No divisions assigned.</p>}
-            {isAdmin && configurationOpen ? (
-              <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'end', flexWrap: 'wrap' }}>
-                <label style={{ display: 'grid', gap: '0.3rem' }}>Assign division
-                  <select
-                    value={selectedDivisionBySport[entry.id] ?? ''}
-                    onChange={(event) => setSelectedDivisionBySport((previous) => ({ ...previous, [entry.id]: event.target.value }))}
+        <SelectionTabs
+          label="Sports"
+          selectedId={selectedSportTab}
+          onSelect={setSelectedSportTab}
+          items={configuration.sports.map((entry) => {
+            const activeDivisionId = selectedTabId(
+              entry.divisions.map((division) => division.assignment_id),
+              selectedDivisionTabBySport[entry.id] ?? null,
+            )
+            return {
+            id: entry.id,
+            label: entry.sport.name,
+            content: (
+              <article style={{ padding: '1rem', background: 'white', border: '1px solid #d5d9de', borderRadius: '6px' }}>
+                <h4 style={{ margin: '0 0 0.5rem' }}>{entry.sport.name}</h4>
+                {entry.sport.description ? <p style={{ margin: '0 0 0.6rem', color: '#64748b' }}>{entry.sport.description}</p> : null}
+                {isAdmin && configurationOpen ? (
+                  <button
+                    type="button"
+                    disabled={removeSportMutation.isPending}
+                    onClick={() => {
+                      if (window.confirm(`Remove ${entry.sport.name} and its division assignments from this season? The catalog sport will remain.`)) {
+                        removeSportMutation.mutate(entry.id)
+                      }
+                    }}
                   >
-                    <option value="">Select division</option>
-                    {divisionsQuery.data?.filter((division) => !entry.divisions.some((assigned) => assigned.id === division.id)).map((division) => (
-                      <option key={division.id} value={division.id}>{division.name}</option>
-                    ))}
-                  </select>
-                </label>
-                <button
-                  type="button"
-                  disabled={!selectedDivisionBySport[entry.id] || assignDivisionMutation.isPending}
-                  onClick={() => {
-                    setError('')
-                    assignDivisionMutation.mutate({ seasonSportId: entry.id, divisionId: Number(selectedDivisionBySport[entry.id]) })
-                  }}
-                >
-                  Assign division
-                </button>
-              </div>
-            ) : null}
-          </article>
-        ))}
+                    Remove from season
+                  </button>
+                ) : null}
+                {entry.divisions.length ? (
+                  <SelectionTabs
+                    label={`${entry.sport.name} divisions`}
+                    selectedId={selectedDivisionTabBySport[entry.id] ?? null}
+                    onSelect={(id) => setSelectedDivisionTabBySport((previous) => ({ ...previous, [entry.id]: id }))}
+                    items={entry.divisions.map((division) => ({
+                      id: division.assignment_id,
+                      label: division.name,
+                      content: (
+                        <div>
+                          <span>{division.name} · {division.gender_policy} · roster {division.minimum_roster_size}-{division.maximum_roster_size}</span>
+                          {isAdmin && configurationOpen ? (
+                            <button
+                              type="button"
+                              disabled={removeDivisionMutation.isPending}
+                              onClick={() => {
+                                if (window.confirm(`Remove ${division.name} from ${entry.sport.name}? The catalog division will remain.`)) {
+                                  removeDivisionMutation.mutate({ seasonSportId: entry.id, assignmentId: division.assignment_id })
+                                }
+                              }}
+                            >
+                              Remove
+                            </button>
+                          ) : null}
+                          <SeasonTeamsSection
+                            divisionAssignmentId={division.assignment_id}
+                            minimumRosterSize={division.minimum_roster_size}
+                            seasonStatus={configuration.season.season_status}
+                            registrationStartDate={configuration.season.registration_start_date}
+                            registrationEndDate={configuration.season.registration_end_date}
+                            isAdmin={isAdmin}
+                            isActive={entry.id === activeSportId && division.assignment_id === activeDivisionId}
+                          />
+                          <DivisionScheduleSection
+                            divisionAssignmentId={division.assignment_id}
+                            seasonStatus={configuration.season.season_status}
+                            isAdmin={isAdmin}
+                            isActive={entry.id === activeSportId && division.assignment_id === activeDivisionId}
+                          />
+                        </div>
+                      ),
+                    }))}
+                  />
+                ) : <p>No divisions assigned.</p>}
+                {isAdmin && configurationOpen ? (
+                  <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'end', flexWrap: 'wrap' }}>
+                    <label style={{ display: 'grid', gap: '0.3rem' }}>Assign division
+                      <select
+                        value={selectedDivisionBySport[entry.id] ?? ''}
+                        onChange={(event) => setSelectedDivisionBySport((previous) => ({ ...previous, [entry.id]: event.target.value }))}
+                      >
+                        <option value="">Select division</option>
+                        {divisionsQuery.data?.filter((division) => !entry.divisions.some((assigned) => assigned.id === division.id)).map((division) => (
+                          <option key={division.id} value={division.id}>{division.name}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <button
+                      type="button"
+                      disabled={!selectedDivisionBySport[entry.id] || assignDivisionMutation.isPending}
+                      onClick={() => {
+                        setError('')
+                        assignDivisionMutation.mutate({ seasonSportId: entry.id, divisionId: Number(selectedDivisionBySport[entry.id]) })
+                      }}
+                    >
+                      Assign division
+                    </button>
+                  </div>
+                ) : null}
+              </article>
+            ),
+            }
+          })}
+        />
       </section>
     </div>
   )

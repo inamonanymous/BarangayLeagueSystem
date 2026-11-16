@@ -3,7 +3,26 @@ from datetime import date
 from app.application.common.utils.base_classes import BasePolicy
 
 
+class SeasonTeamConflictError(ValueError):
+    pass
+
+
 class TeamPolicy(BasePolicy):
+    def validate_archive_status(self, season_status: str) -> None:
+        if season_status != "REGISTRATION":
+            raise ValueError("Teams can only be archived or restored while the season is in Registration.")
+
+    def validate_restore_conflicts(self, conflicts: list[tuple[int, str, int, str]]) -> None:
+        if conflicts:
+            details = "; ".join(
+                f"{player_name} (player #{player_id}) on {team_name} (team #{team_id})"
+                for player_id, player_name, team_id, team_name in conflicts
+            )
+            raise SeasonTeamConflictError(
+                "Team cannot be restored because roster players are on another active team "
+                f"in the same sport and season: {details}. Remove them from the other team first."
+            )
+
     def normalize_text(self, value: str, field_name: str, max_length: int) -> str:
         normalized = value.strip() if isinstance(value, str) else ""
         if not normalized:

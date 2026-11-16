@@ -1,0 +1,23 @@
+@startuml
+title Readiness before moving to Ongoing
+skinparam shadowing false
+start
+:Administrator requests ONGOING;
+:Check transition and other active seasons;
+if (Checks passed?) then (yes)
+  :Find non-archived teams in season;
+  :Count roster entries with active player profiles;
+  if (Every active team meets its division minimum?) then (yes)
+    :Set season to ONGOING and commit;
+  else (no)
+    :Return incomplete team names and counts;
+  endif
+else (no)
+  :Reject transition;
+endif
+stop
+legend bottom
+  Archived teams and archived players are excluded.
+  There is no explicit minimum-team requirement.
+endlegend
+@enduml

@@ -1,0 +1,25 @@
+@startuml
+title Edit or remove a roster entry
+skinparam shadowing false
+start
+:Administrator selects a roster entry;
+if (Team active and Registration window open?) then (yes)
+else (no)
+  :Reject;
+  stop
+endif
+if (Action?) then (edit jersey)
+  :Normalize number and check uniqueness within team;
+  if (Valid and unused?) then (yes)
+    :Save new jersey number;
+    :Commit and refresh roster;
+  else (no)
+    :Reject;
+  endif
+else (remove player)
+  :Delete roster link;
+  :Keep player profile and eligibility record;
+  :Commit and refresh roster and available players;
+endif
+stop
+@enduml

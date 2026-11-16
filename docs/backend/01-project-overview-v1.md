@@ -1,5 +1,9 @@
 # Barangay League Management System
 
+> **Version 1 vision:** This document describes the intended system, including
+> features not yet implemented. For current progress, see the
+> [project roadmap](../checklist.md) and [implementation tracker](implementation-alignment.md).
+
 ## 1. Introduction
 
 The Barangay League Management System is a web-based sports tournament management platform designed to digitize and simplify the administration of local community leagues.

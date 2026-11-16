@@ -1,0 +1,21 @@
+@startuml
+title Available-player picker
+skinparam shadowing false
+start
+:Administrator opens selected active team's roster;
+:Request available players for team;
+if (Team exists and is not archived?) then (yes)
+  :Find team's season and sport;
+  :Start with active player profiles;
+  :Exclude players assigned to an active team\nin the same sport and season;
+  :Return remaining players to dropdown;
+else (no)
+  :Return an error;
+endif
+stop
+legend bottom
+  Assignments in another sport or season, or to an
+  archived team, do not block availability. Submission
+  is checked again by the add-player service.
+endlegend
+@enduml

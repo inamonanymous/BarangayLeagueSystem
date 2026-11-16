@@ -1,0 +1,20 @@
+@startuml
+title Create a user
+skinparam shadowing false
+start
+:Administrator submits username,\npassword, and role;
+:Route checks session and validates input;
+:UserService checks username,\npassword, role, and duplicates;
+if (Valid and available?) then (yes)
+  :Find or create supported role;
+  :Hash password and create active user;
+  :Commit and return user details;
+else (no)
+  :Return an error;
+endif
+stop
+legend bottom
+  User listing, password reset, and first-administrator
+  bootstrap are not currently implemented.
+endlegend
+@enduml

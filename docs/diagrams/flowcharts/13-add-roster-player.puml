@@ -1,0 +1,46 @@
+@startuml
+title Add a player to a roster
+skinparam shadowing false
+start
+:Administrator submits player, jersey,\nand voter details;
+:Route checks Administrator and validates JSON;
+if (Team active and Registration window open?) then (yes)
+else (no)
+  :Reject;
+  stop
+endif
+if (Player exists and profile is active?) then (yes)
+else (no)
+  :Reject;
+  stop
+endif
+:Normalize jersey number;
+if (Already on team or another active team\nin same sport and season?) then (yes)
+  :Reject;
+  stop
+else (no)
+endif
+if (Jersey used or roster at maximum?) then (yes)
+  :Reject;
+  stop
+else (no)
+endif
+if (Player is 18 or older today?) then (yes)
+  if (Voter verified and number supplied?) then (yes)
+    :Create or update season eligibility record;
+  else (no)
+    :Reject;
+    stop
+  endif
+else (no)
+endif
+:Create roster link;
+:Commit roster and eligibility changes;
+:Refresh roster and available-player queries;
+stop
+legend bottom
+  Adult voter details are required on every add request;
+  there is no independent voter-registration lookup.
+  Gender eligibility is not currently enforced.
+endlegend
+@enduml

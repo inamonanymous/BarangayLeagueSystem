@@ -18,7 +18,7 @@ The database is designed to support:
 
 The system uses MySQL as its relational database.
 
-> **Implementation status:** This document describes the Version 1 target schema, not the current live database. Implemented tables, migration state, and known gaps are tracked in [implementation-alignment.md](implementation-alignment.md). Current ORM models cover users, roles, seasons, sports, divisions, season associations, season teams, players, rosters, and season-player eligibility; later competition and reporting tables remain planned.
+> **Implementation status:** This document describes the Version 1 target schema, not the current live database. Implemented tables, migration state, and known gaps are tracked in [implementation-alignment.md](implementation-alignment.md). Current ORM models cover users, roles, seasons, sports, divisions, season associations, season teams, players, rosters, season-player eligibility, games, and a schedule lock. Game results and later competition and reporting tables remain planned.
 
 All entities shall use soft deletion through archival mechanisms instead of physical deletion.
 
@@ -319,6 +319,9 @@ Business Rules:
 
 Represents game venues.
 
+**Current implementation:** managed venues are planned. Game scheduling currently
+stores a venue name and normalized conflict-check key on each Game instead.
+
 | Column     | Type         |
 | ---------- | ------------ |
 | id         | BIGINT       |
@@ -332,6 +335,12 @@ Represents game venues.
 # 12. Game
 
 Represents both regular season and playoff games.
+
+The table below is the V1 target, not the current scheduling schema. The implemented
+Game stores the season-division assignment, home and away team IDs, free-text venue,
+normalized venue key, local start/end datetimes, and creation time. Status, stages,
+scores, finalization, and playoffs remain planned; see the
+[implementation tracker](implementation-alignment.md).
 
 | Column                   | Type     |
 | ------------------------ | -------- |

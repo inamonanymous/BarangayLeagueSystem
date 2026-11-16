@@ -14,10 +14,15 @@ These are frontend routes. Open them on the frontend application's host (for exa
 | Season Configuration | `/seasons/:seasonId/configuration` | Public view; Administrator edits | View sports and divisions assigned to a season; administrators manage catalog entries and assignments. |
 | Players | `/players` | Administrators | Create, view, edit, archive, and restore permanent player profiles. |
 | Team Registration | Within `/seasons/:seasonId/configuration` | Public list; Administrator registration | View teams under each division; administrators register teams during the season's registration period. |
+| Game Schedule | Within `/seasons/:seasonId/configuration` | Public list; Administrator scheduling | View division games; administrators schedule and reschedule games when the season is Ongoing. |
 | Add User | `/users/new` | Administrators | Create a user and assign a role. |
 | Unknown path | Any other path | N/A | Redirects to `/`. |
 
 Route definitions are in `frontend/src/App.tsx`. The Add User link is displayed only to Administrators, and the page also checks the current user's role. The backend independently enforces this permission.
+
+On the season configuration page, use the sport, division, and team tabs to focus on one roster at a time. Archived teams remain available in the team tabs for restoration, and the game schedule is shown for the selected division. Tabs also support the arrow, Home, and End keys.
+
+The page loads teams and schedules only for the selected division, and rosters and available players only for the selected team. Data is cached in memory for one minute and refreshed after related changes in this app; older data is rechecked when returning to the page, selecting a tab, or refocusing the browser. Changes made elsewhere are not pushed live, so use **Refresh data** to check immediately. A browser reload starts with a new in-memory cache.
 
 ## Backend API URLs
 
@@ -47,20 +52,20 @@ The frontend Axios client uses `/api/v1` as its base path and sends session cook
 | Remove division assignment | `DELETE` | `/api/v1/seasons/sports/{seasonSportId}/divisions/{assignmentId}` | Remove a division link; the catalog division remains. Administrator access is required. |
 | List teams in division | `GET` | `/api/v1/season-sport-divisions/{assignmentId}/teams` | Retrieve teams for a season-specific division. |
 | Register team | `POST` | `/api/v1/season-sport-divisions/{assignmentId}/teams` | Register a team during the season's Registration status/window. Administrator access is required. |
+| List games | `GET` | `/api/v1/season-sport-divisions/{assignmentId}/games` | List scheduled games in a division. |
+| Schedule game | `POST` | `/api/v1/season-sport-divisions/{assignmentId}/games` | Schedule two active teams during Ongoing; requires an Administrator. |
+| Reschedule game | `PUT` | `/api/v1/games/{gameId}/schedule` | Update a game's venue and times before its start; requires an Administrator and an Ongoing season. |
 | Edit team | `PUT` | `/api/v1/season-teams/{teamId}` | Edit team details during Registration. Administrator access is required. |
-| Archive/restore team | `DELETE` / `PATCH` | `/api/v1/season-teams/{teamId}` / `/api/v1/season-teams/{teamId}/archive` | Soft-archive or restore a team. Administrator access is required. |
+| Archive/restore team | `DELETE` / `PATCH` | `/api/v1/season-teams/{teamId}` / `/api/v1/season-teams/{teamId}/archive` | Administrator only; Registration status required. Restore also requires the registration window and no conflicting active-team roster assignment. |
 | List players | `GET` | `/api/v1/players/` | List active player profiles; Administrators only. Use `?include_archived=true` to include archived profiles. |
 | Create player | `POST` | `/api/v1/players/` | Create a permanent player profile. Administrator access is required. |
 | Read player | `GET` | `/api/v1/players/{playerId}` | Retrieve a player profile. Administrator access is required. |
 | Edit player | `PUT` | `/api/v1/players/{playerId}` | Edit a permanent player profile. Administrator access is required. |
 | Archive/restore player | `DELETE` / `PATCH` | `/api/v1/players/{playerId}` / `/api/v1/players/{playerId}/archive` | Soft-archive or restore a player. Administrator access is required. |
 | List roster | `GET` | `/api/v1/season-teams/{teamId}/roster` | List roster entries for a team. |
+| List available roster players | `GET` | `/api/v1/season-teams/{teamId}/available-players` | List active players not assigned to an active team in the same sport and season; Administrator access is required. |
 | Add roster player | `POST` | `/api/v1/season-teams/{teamId}/roster` | Assign a player and jersey number; adult voter verification is required. Administrator access is required. |
 | Edit roster entry | `PUT` | `/api/v1/season-teams/{teamId}/roster/{rosterId}` | Change a jersey number during Registration. Administrator access is required. |
 | Remove roster entry | `DELETE` | `/api/v1/season-teams/{teamId}/roster/{rosterId}` | Remove the player-team link without deleting the player. Administrator access is required. |
-| List players in roster | `GET` | `/api/v1/season-teams/{teamId}/roster` | Retrieve a team's roster. |
-| Add player to roster | `POST` | `/api/v1/season-teams/{teamId}/roster` | Add a player and jersey number; voter verification is required for adults. Administrator access is required. |
-| Update roster entry | `PUT` | `/api/v1/season-teams/{teamId}/roster/{rosterId}` | Update a jersey number during Registration. Administrator access is required. |
-| Remove roster entry | `DELETE` | `/api/v1/season-teams/{teamId}/roster/{rosterId}` | Remove the player-team link without deleting the Player. Administrator access is required. |
 
 Frontend API functions are grouped in `frontend/src/shared/api/`. The backend serves the API under `/api/v1`.

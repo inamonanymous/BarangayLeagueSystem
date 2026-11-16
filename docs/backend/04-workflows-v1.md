@@ -1,5 +1,10 @@
 # Workflows and Use Cases
 
+> **Version 1 target workflows:** Some steps below are planned rather than
+> implemented, particularly results, finalization, and standings. For actual
+> behavior and code entry points, use the [current feature flowcharts](../diagrams/system-feature-flowcharts.md)
+> and [implementation tracker](implementation-alignment.md).
+
 ## Overview
 
 This document defines the primary business workflows and use cases of the Barangay League Management System.
@@ -23,16 +28,15 @@ Allows an administrator to create a new league season.
 ## Preconditions
 
 * Administrator is authenticated.
-* Required sports and divisions exist.
+* Administrator supplies valid season details.
 
 ## Main Flow
 
 1. Administrator navigates to the Season Management module.
 2. Administrator selects "Create Season".
 3. Administrator enters season information.
-4. Administrator assigns supported sports and divisions.
-5. System validates the input.
-6. System creates the season with an initial status of `PLANNING`.
+4. System validates the input and creates the season with an initial status of `PLANNING`.
+5. Administrator can then assign existing sports and divisions to the season.
 
 ## Postconditions
 
@@ -48,21 +52,21 @@ Administrator
 
 ## Description
 
-Allows an administrator to register an existing team to a specific season and division.
+Allows an administrator to register a team for a specific season and division.
 
 ## Preconditions
 
 * Season exists.
-* Team exists.
-* Season is open for registration.
+* The sport and division are assigned to the season.
+* Season is in Registration and its inclusive registration window, if set, is open.
 
 ## Main Flow
 
 1. Administrator selects a season.
-2. Administrator selects a team.
-3. Administrator selects the sport and division.
-4. System validates eligibility.
-5. System registers the team to the season.
+2. Administrator selects the sport and division.
+3. Administrator enters the team and barangay details.
+4. System validates the registration window and team details.
+5. System creates the season team.
 
 ## Postconditions
 
@@ -123,7 +127,8 @@ Allows an administrator to assign players to a team's seasonal roster.
 
 ## Postconditions
 
-* Players become eligible to participate in games.
+* The roster links are saved. Adult additions require administrator-entered
+  voter verification; division gender eligibility is not yet enforced.
 
 ---
 
@@ -137,17 +142,25 @@ Administrator
 
 Allows an administrator to manually create game schedules.
 
+Current implementation: schedules are created only while the season is Ongoing.
+Each game uses a free-text venue and local start/end times (whole seconds or less
+precision; no timezone offsets); Rounds and managed venues are deferred.
+Administrators may also reschedule a game before its
+original start while the season is Ongoing; the new start must be in the future.
+The original teams remain unchanged and the same overlap checks apply. The
+before-start check uses the server's local clock.
+
 ## Preconditions
 
-* Season is active.
-* Teams are registered.
+* Season is Ongoing.
+* Two different, non-archived teams are registered in the same division.
 
 ## Main Flow
 
 1. Administrator selects season, sport, and division.
 2. Administrator selects two participating teams.
-3. Administrator selects date, time, and venue.
-4. System validates schedule conflicts.
+3. Administrator enters start/end date and time and a venue name.
+4. System rejects overlapping games for either team or the normalized venue name.
 5. System creates the schedule.
 
 ## Postconditions

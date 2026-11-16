@@ -1,5 +1,9 @@
 # System Features
 
+> **Version 1 target:** The modules below include planned features. See the
+> [project roadmap](../checklist.md) and [implementation tracker](implementation-alignment.md)
+> for what currently works.
+
 ## Overview
 
 This document defines the functional features provided by the Barangay League Management System.

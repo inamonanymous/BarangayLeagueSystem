@@ -1,6 +1,6 @@
 # Backend Checklist
 
-Last reviewed: 2026-11-13
+Last reviewed: 2026-11-15
 
 `[x]` implemented; `[~]` partial; `[ ]` planned. The [alignment tracker](implementation-alignment.md) explains the remaining gaps.
 
@@ -18,13 +18,13 @@ Last reviewed: 2026-11-13
 - [~] Users and roles: create users and enforce roles; list/edit/activation/password reset remain.
 - [~] Seasons: create, list, status transitions, date validation, and roster readiness; concurrency enforcement remains.
 - [x] Sport and division catalogs and season-specific assignments.
-- [~] Season teams: register, list, edit, archive, and restore; decide post-registration archive policy.
+- [~] Season teams: register, list, edit, archive, and restore; archive/restore require Registration and restore checks roster conflicts.
 - [~] Players and rosters: player CRUD/archive and roster add/list/update/remove, including adult voter verification; division eligibility policy is not fully defined.
 - [x] Demo team/player seed and read-only post-seed verification for development.
+- [~] Game scheduling and overlap validation implemented for creation, listing, and rescheduling; cancellation remains.
 
 ## Planned features
 
-- [ ] Game scheduling and schedule conflict validation.
 - [ ] Venues and Rounds, subject to the scheduling and V1 design decisions.
 - [ ] Game results, finalization and corrections.
 - [ ] Standings and player statistics.

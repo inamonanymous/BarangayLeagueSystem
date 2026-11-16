@@ -77,6 +77,10 @@ def archive_team(team_id: int):
         team = SeasonTeamService().set_archived(team_id, True, session["user_id"])
     except LookupError as exc:
         return error_response(str(exc), status_code=404)
+    except SeasonTeamConflictError as exc:
+        return error_response(str(exc), status_code=409)
+    except ValueError as exc:
+        return error_response(str(exc), status_code=400)
     return success_response("Team archived.", team.to_dict())
 
 
@@ -97,6 +101,10 @@ def set_team_archive_state(team_id: int):
         return error_response("Validation failed.", status_code=400, errors=exc.messages)
     except LookupError as exc:
         return error_response(str(exc), status_code=404)
+    except SeasonTeamConflictError as exc:
+        return error_response(str(exc), status_code=409)
+    except ValueError as exc:
+        return error_response(str(exc), status_code=400)
     return success_response("Team archive state updated.", team.to_dict())
 
 
@@ -109,6 +117,18 @@ def list_roster(team_id: int):
     return success_response("Roster retrieved.", entries)
 
 
+@teams_bp.get("/season-teams/<int:team_id>/available-players")
+@admin_required
+def list_available_players(team_id: int):
+    try:
+        players = RosterService().list_available_players(team_id)
+    except LookupError as exc:
+        return error_response(str(exc), status_code=404)
+    except ValueError as exc:
+        return error_response(str(exc), status_code=400)
+    return success_response("Available players retrieved.", players)
+
+
 @teams_bp.post("/season-teams/<int:team_id>/roster")
 @admin_required
 def add_roster_player(team_id: int):
@@ -116,10 +136,15 @@ def add_roster_player(team_id: int):
     if not isinstance(payload, dict):
         return error_response("A JSON request body is required.", status_code=400)
     try:
+        data = add_roster_player_schema.load(payload)
         roster = RosterService().add_player(
             team_id,
             actor_id=session["user_id"],
-            **add_roster_player_schema.load(payload),
+            player_id=data["player_id"],
+            jersey_number=data["jersey_number"],
+            voter_verified=data.get("voter_verified", False),
+            voter_number=data.get("voter_number"),
+            eligibility_notes=data.get("eligibility_notes"),
         )
     except ValidationError as exc:
         return error_response("Validation failed.", status_code=400, errors=exc.messages)
@@ -129,7 +154,7 @@ def add_roster_player(team_id: int):
         return error_response(str(exc), status_code=409)
     except ValueError as exc:
         return error_response(str(exc), status_code=400)
-    return success_response("Player added to roster.", roster.to_dict(), status_code=201)
+    return success_response("Player added to roster.", roster, status_code=201)
 
 
 @teams_bp.put("/season-teams/<int:team_id>/roster/<int:roster_id>")
@@ -153,7 +178,7 @@ def update_roster_entry(team_id: int, roster_id: int):
         return error_response(str(exc), status_code=409)
     except ValueError as exc:
         return error_response(str(exc), status_code=400)
-    return success_response("Roster entry updated.", roster.to_dict())
+    return success_response("Roster entry updated.", roster)
 
 
 @teams_bp.delete("/season-teams/<int:team_id>/roster/<int:roster_id>")

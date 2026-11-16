@@ -3,7 +3,9 @@ import { AxiosError } from 'axios'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getTeamsForDivision, registerTeam, setTeamArchived, updateTeam, type SeasonStatus, type SeasonTeam } from '../../shared/api/seasons'
+import SelectionTabs, { selectedTabId } from '../../shared/components/SelectionTabs'
 import TeamRosterSection from './TeamRosterSection'
+import { seasonDataStaleTime } from './queryOptions'
 
 interface SeasonTeamsSectionProps {
   divisionAssignmentId: number
@@ -12,6 +14,7 @@ interface SeasonTeamsSectionProps {
   registrationStartDate: string | null
   registrationEndDate: string | null
   isAdmin: boolean
+  isActive: boolean
 }
 
 interface ApiErrorResponse {
@@ -43,6 +46,7 @@ function SeasonTeamsSection({
   registrationStartDate,
   registrationEndDate,
   isAdmin,
+  isActive,
 }: SeasonTeamsSectionProps) {
   const queryClient = useQueryClient()
   const queryKey = ['season-teams', divisionAssignmentId] as const
@@ -52,16 +56,20 @@ function SeasonTeamsSection({
   const [managerName, setManagerName] = useState('')
   const [teamColor, setTeamColor] = useState('')
   const [editingTeam, setEditingTeam] = useState<SeasonTeam | null>(null)
+  const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null)
   const [error, setError] = useState('')
   const [isRegisterFormOpen, setIsRegisterFormOpen] = useState(false)
   const teamsQuery = useQuery({
     queryKey,
     queryFn: () => getTeamsForDivision(divisionAssignmentId),
+    enabled: isActive,
+    staleTime: seasonDataStaleTime,
   })
   const registerMutation = useMutation({
     mutationFn: (payload: Omit<SeasonTeam, 'id' | 'season_sport_division_id' | 'is_archived' | 'created_at' | 'updated_at'>) =>
       registerTeam(divisionAssignmentId, payload),
-    onSuccess: async () => {
+    onSuccess: async (team) => {
+      setSelectedTeamId(team.id)
       setName('')
       setBarangay('')
       setCoachName('')
@@ -91,7 +99,10 @@ function SeasonTeamsSection({
     mutationFn: ({ teamId, archived }: { teamId: number; archived: boolean }) => setTeamArchived(teamId, archived),
     onSuccess: async () => {
       setError('')
-      await queryClient.invalidateQueries({ queryKey })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey }),
+        queryClient.invalidateQueries({ queryKey: ['players', 'available'] }),
+      ])
     },
     onError: (caught) => setError(getErrorMessage(caught)),
   })
@@ -101,6 +112,11 @@ function SeasonTeamsSection({
   const dateWindowOpen = !hasRegistrationWindow
     || (today >= registrationStartDate && today <= registrationEndDate)
   const canRegister = isAdmin && seasonStatus === 'REGISTRATION' && dateWindowOpen
+  const canArchive = isAdmin && seasonStatus === 'REGISTRATION'
+  const activeTeamId = selectedTabId(
+    teamsQuery.data?.map((team) => team.id) ?? [],
+    selectedTeamId ?? teamsQuery.data?.find((team) => !team.is_archived)?.id ?? null,
+  )
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -182,62 +198,74 @@ function SeasonTeamsSection({
       ) : null}
       {teamsQuery.data?.length === 0 ? <p>No teams registered in this division yet.</p> : null}
       {teamsQuery.data?.length ? (
-        <div className="season-team-list">
-          {teamsQuery.data.map((team) => (
-            <article key={team.id} className="season-team-card">
-              {editingTeam?.id === team.id ? (
-                <div className="season-team-edit-form">
-                  <input aria-label="Team name" value={editingTeam.name} onChange={(event) => setEditingTeam({ ...editingTeam, name: event.target.value })} />
-                  <input aria-label="Barangay" value={editingTeam.barangay} onChange={(event) => setEditingTeam({ ...editingTeam, barangay: event.target.value })} />
-                  <input aria-label="Coach" value={editingTeam.coach_name ?? ''} onChange={(event) => setEditingTeam({ ...editingTeam, coach_name: event.target.value || null })} />
-                  <input aria-label="Manager" value={editingTeam.manager_name ?? ''} onChange={(event) => setEditingTeam({ ...editingTeam, manager_name: event.target.value || null })} />
-                  <input aria-label="Team color" value={editingTeam.team_color ?? ''} onChange={(event) => setEditingTeam({ ...editingTeam, team_color: event.target.value || null })} />
-                  <button type="button" disabled={updateTeamMutation.isPending} onClick={() => updateTeamMutation.mutate(editingTeam)}>Save team</button>
-                  <button type="button" onClick={() => setEditingTeam(null)}>Cancel</button>
-                </div>
-              ) : (
-                <div className="season-team-card__header">
-                  <div>
-                    <h4 className="season-team-card__name">
-                      {team.name}
-                      {team.is_archived ? <span className="status-badge status-badge--muted">Archived</span> : null}
-                    </h4>
-                    <div className="season-team-card__details">
-                      <span>Barangay: {team.barangay}</span>
-                      {team.coach_name ? <span>Coach: {team.coach_name}</span> : null}
-                      {team.manager_name ? <span>Manager: {team.manager_name}</span> : null}
-                      {team.team_color ? <span>Team color: {team.team_color}</span> : null}
-                    </div>
+        <SelectionTabs
+          label="Teams"
+          selectedId={activeTeamId ?? null}
+          onSelect={setSelectedTeamId}
+          items={teamsQuery.data.map((team) => ({
+            id: team.id,
+            label: `${team.name}${team.is_archived ? ' (archived)' : ''}`,
+            content: (
+              <article className="season-team-card">
+                {editingTeam?.id === team.id ? (
+                  <div className="season-team-edit-form">
+                    <input aria-label="Team name" value={editingTeam.name} onChange={(event) => setEditingTeam({ ...editingTeam, name: event.target.value })} />
+                    <input aria-label="Barangay" value={editingTeam.barangay} onChange={(event) => setEditingTeam({ ...editingTeam, barangay: event.target.value })} />
+                    <input aria-label="Coach" value={editingTeam.coach_name ?? ''} onChange={(event) => setEditingTeam({ ...editingTeam, coach_name: event.target.value || null })} />
+                    <input aria-label="Manager" value={editingTeam.manager_name ?? ''} onChange={(event) => setEditingTeam({ ...editingTeam, manager_name: event.target.value || null })} />
+                    <input aria-label="Team color" value={editingTeam.team_color ?? ''} onChange={(event) => setEditingTeam({ ...editingTeam, team_color: event.target.value || null })} />
+                    <button type="button" disabled={updateTeamMutation.isPending} onClick={() => updateTeamMutation.mutate(editingTeam)}>Save team</button>
+                    <button type="button" onClick={() => setEditingTeam(null)}>Cancel</button>
                   </div>
-                  {isAdmin ? (
-                    <span className="season-team-card__actions">
-                      {!team.is_archived && canRegister ? <button type="button" onClick={() => setEditingTeam(team)}>Edit</button> : null}
-                      <button
-                        type="button"
-                        disabled={archiveTeamMutation.isPending || (team.is_archived && !canRegister)}
-                        onClick={() => archiveTeamMutation.mutate({ teamId: team.id, archived: !team.is_archived })}
-                      >
-                        {team.is_archived ? 'Restore' : 'Archive'}
-                      </button>
-                    </span>
-                  ) : null}
-                </div>
-              )}
-              {team.is_archived && isAdmin && !canRegister ? (
-                <p className="muted-help">Restore is available during the season registration window.</p>
-              ) : null}
-              <TeamRosterSection
-                teamId={team.id}
-                teamArchived={team.is_archived}
-                minimumRosterSize={minimumRosterSize}
-                seasonStatus={seasonStatus}
-                registrationStartDate={registrationStartDate}
-                registrationEndDate={registrationEndDate}
-                isAdmin={isAdmin}
-              />
-            </article>
-          ))}
-        </div>
+                ) : (
+                  <div className="season-team-card__header">
+                    <div>
+                      <h4 className="season-team-card__name">
+                        {team.name}
+                        {team.is_archived ? <span className="status-badge status-badge--muted">Archived</span> : null}
+                      </h4>
+                      <div className="season-team-card__details">
+                        <span>Barangay: {team.barangay}</span>
+                        {team.coach_name ? <span>Coach: {team.coach_name}</span> : null}
+                        {team.manager_name ? <span>Manager: {team.manager_name}</span> : null}
+                        {team.team_color ? <span>Team color: {team.team_color}</span> : null}
+                      </div>
+                    </div>
+                    {isAdmin ? (
+                      <span className="season-team-card__actions">
+                        {!team.is_archived && canRegister ? <button type="button" onClick={() => setEditingTeam(team)}>Edit</button> : null}
+                        <button
+                          type="button"
+                          disabled={archiveTeamMutation.isPending || (team.is_archived ? !canRegister : !canArchive)}
+                          onClick={() => archiveTeamMutation.mutate({ teamId: team.id, archived: !team.is_archived })}
+                        >
+                          {team.is_archived ? 'Restore' : 'Archive'}
+                        </button>
+                      </span>
+                    ) : null}
+                  </div>
+                )}
+                {isAdmin && (team.is_archived ? !canRegister : !canArchive) ? (
+                  <p className="muted-help">
+                    {team.is_archived
+                      ? 'Restore is available during the season registration window.'
+                      : 'Archive is available while the season is in Registration.'}
+                  </p>
+                ) : null}
+                <TeamRosterSection
+                  teamId={team.id}
+                  teamArchived={team.is_archived}
+                  minimumRosterSize={minimumRosterSize}
+                  seasonStatus={seasonStatus}
+                  registrationStartDate={registrationStartDate}
+                  registrationEndDate={registrationEndDate}
+                  isAdmin={isAdmin}
+                  isActive={isActive && team.id === activeTeamId}
+                />
+              </article>
+            ),
+          }))}
+        />
       ) : null}
     </section>
   )

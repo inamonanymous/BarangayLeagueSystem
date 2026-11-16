@@ -1,5 +1,12 @@
 # User Roles
 
+> **Version 1 target permissions:** The permissions below include planned
+> functionality. Currently, management mutations require an Administrator;
+> public season, catalog, team, roster, and game listings do not require a login.
+> Player-profile management and available-player lookup require an Administrator.
+> Encoder result/statistics entry and user-account management beyond creation
+> are not implemented. See the [implementation tracker](implementation-alignment.md).
+
 ## Overview
 
 This document defines the user roles and access permissions for the Barangay League Management System.

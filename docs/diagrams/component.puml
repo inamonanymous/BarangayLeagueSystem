@@ -1,8 +1,12 @@
 @startuml
-title League Management System - Component Diagram
+title League Management System - Planned Component Architecture
 
 skinparam componentStyle rectangle
 skinparam shadowing false
+legend bottom
+  Conceptual target; not every component is implemented or used by every request.
+  Services own commits; repositories perform feature queries.
+endlegend
 
 package "Client" {
 

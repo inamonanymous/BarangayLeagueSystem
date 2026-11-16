@@ -1,0 +1,19 @@
+@startuml
+title PLANNED - not implemented
+skinparam shadowing false
+rectangle "Current: schedule and\nreschedule games" as Current
+rectangle "Planned: cancellation rules" as Cancel
+rectangle "Planned: record and\nfinalize results" as Results
+rectangle "Planned: standings" as Standings
+rectangle "Planned: statistics and playoffs" as Playoffs
+rectangle "Decide managed venues and rounds" as Venues
+Current ..> Cancel
+Current ..> Results
+Results ..> Standings
+Standings ..> Playoffs
+Current ..> Venues
+note bottom
+  These are ideas and dependencies, not implemented flows.
+  Rules and tests still need to be decided.
+end note
+@enduml

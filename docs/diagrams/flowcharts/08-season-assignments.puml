@@ -1,0 +1,39 @@
+@startuml
+title Assign or remove season sports and divisions
+skinparam shadowing false
+start
+:Administrator chooses season;
+if (Planning or Registration?) then (yes)
+else (no)
+  :Reject assignment change;
+  stop
+endif
+if (Action?) then (assign)
+  if (Assign sport or division?) then (sport)
+    :Choose existing sport;
+    if (Already assigned?) then (yes)
+      :Reject;
+    else (no)
+      :Save SeasonSport link;
+    endif
+  else (division)
+    :Choose existing division for assigned sport;
+    if (Already assigned to sport?) then (yes)
+      :Reject;
+    else (no)
+      :Save SeasonSportDivision link;
+    endif
+  endif
+else (remove)
+  if (Assignment has registered teams?) then (yes)
+    :Reject;
+  else (no)
+    :Remove assignment link, not catalog record;
+  endif
+endif
+stop
+legend bottom
+  Removal checks include archived teams. Removing
+  a sport also removes its unused division links.
+endlegend
+@enduml

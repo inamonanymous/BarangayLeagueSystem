@@ -5,6 +5,7 @@ from app.extensions import init_extensions
 from app.api.v1 import register_blueprints
 from app.domain.models.roles import Role
 from app.domain.models.divisions import Division
+from app.domain.models.games import Game, ScheduleLock
 from app.domain.models.seasons import Season
 from app.domain.models.season_sports import SeasonSport
 from app.domain.models.season_sport_divisions import SeasonSportDivision

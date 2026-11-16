@@ -1,0 +1,28 @@
+@startuml
+title Sport and division catalogs
+skinparam shadowing false
+start
+if (Catalog action?) then (create or edit)
+  if (Sport or division?) then (sport)
+    :Validate name and optional description;
+  else (division)
+    :Validate name, gender policy,\nand roster limits;
+  endif
+  if (Invalid or duplicate name?) then (yes)
+    :Reject;
+  else (no)
+    :Save shared catalog record;
+  endif
+else (delete)
+  if (Assigned to a season?) then (yes)
+    :Reject deletion;
+  else (no)
+    :Delete unused catalog record;
+  endif
+endif
+stop
+legend bottom
+  Catalogs are shared. Gender policy is stored,
+  but player gender eligibility is not enforced yet.
+endlegend
+@enduml

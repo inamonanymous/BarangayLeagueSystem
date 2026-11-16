@@ -8,9 +8,13 @@ A work-in-progress league management application for organizing seasons, sports,
 - Season lifecycle, sport and division catalogs, and season configuration.
 - Team registration and management, player profiles, and team rosters.
 - A roster-readiness check before moving a season to Ongoing.
+- Manual game scheduling and rescheduling for Ongoing seasons, with team and venue overlap checks.
+- Nested sport, division, and team tabs, with selective loading and a manual refresh for cached season data.
 - Development-only sample teams and players, with a read-only verification command.
 
-Game scheduling, results, standings, venues, statistics, and playoffs are **not implemented yet**. See the [project roadmap](docs/checklist.md), [backend checklist](docs/backend/checklist.md), and [implementation alignment tracker](docs/backend/implementation-alignment.md) for details and known gaps.
+Game cancellation, results, standings, managed venues, statistics, and playoffs are **not implemented yet**. See the [project roadmap](docs/checklist.md), [backend checklist](docs/backend/checklist.md), and [implementation alignment tracker](docs/backend/implementation-alignment.md) for details and known gaps. The V1 design documents describe targets, not necessarily implemented behavior.
+
+For feature-by-feature diagrams and code entry points, see the [current system flowcharts](docs/diagrams/system-feature-flowcharts.md), including [PlantUML previews](docs/diagrams/system-feature-flowcharts.md#plantuml-flowcharts-for-vs-code).
 
 ## Requirements
 

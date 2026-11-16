@@ -1,0 +1,33 @@
+@startuml
+title Archive or restore a team
+skinparam shadowing false
+start
+:Administrator selects a team;
+if (Season in Registration?) then (yes)
+else (no)
+  :Reject;
+  stop
+endif
+if (Action?) then (archive)
+  :Set archived flag and record actor and time;
+else (restore archived team)
+  if (Registration window permits restore?) then (yes)
+    if (Roster player on another active team\nin same sport and season?) then (yes)
+      :Reject with player and team details;
+      stop
+    else (no)
+      :Clear archive flag and archive metadata;
+    endif
+  else (no)
+    :Reject restore;
+    stop
+  endif
+endif
+:Commit and refresh teams and available-player data;
+stop
+legend bottom
+  Archive is allowed throughout Registration.
+  Restore also requires an open registration date window.
+  Roster additions and archive/restore share a season-sport lock.
+endlegend
+@enduml

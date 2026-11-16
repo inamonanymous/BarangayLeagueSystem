@@ -1,6 +1,6 @@
 # Implementation Alignment Tracker
 
-Last reviewed: 2026-11-13
+Last reviewed: 2026-11-15
 
 This file separates the documented Version 1 target from what is currently implemented. The detailed table definitions remain in [database design](05-database-design-v1.md); this tracker records implementation status and unresolved differences.
 
@@ -13,16 +13,17 @@ This file separates the documented Version 1 target from what is currently imple
 | Season lifecycle | Public history, Administrator create, controlled status transitions, date validation, sequential one-active-season checks, and a roster-readiness gate before moving to Ongoing. |
 | Sport and Division catalogs | Administrator create/read/update/delete. Catalog entries cannot be deleted while referenced. |
 | Season configuration | Assign catalog Sports to a Season; assign catalog Divisions under a Season-Sport; remove those assignments while the Season is Planning or Registration. |
-| Season Teams | Public list/register, update, and soft archive/restore. Registration requires Registration status and is constrained by the season window. Duplicate names are blocked per division. |
+| Season Teams | Public list; Administrator-only registration, update, and soft archive/restore. Archive/restore require Registration status, and restore also requires an open registration window and no conflicting active-team roster assignments. Duplicate names are blocked per division, including archived teams. |
 | Players and Rosters | Administrator Player profile create/read/update/archive/restore; roster list/add/jersey update/remove. Adult roster additions require voter verification, and Player profiles remain when roster links are removed. |
-| Frontend | Login, dashboard, Add User, Players, Seasons, Season Configuration, Team registration, and nested Roster management. |
-| Database migrations | Roles/legacy user-role conversion, Seasons, optional registration dates, Sport/Division catalogs, SeasonTeam, Player, Roster, eligibility, and archive fields. |
+| Game scheduling | Administrators create games for active teams in an Ongoing season and reschedule them before their start; public division listings show local start/end times and free-text venues. A serialized write prevents overlapping team or venue bookings. |
+| Frontend | Login, dashboard, Add User, Players, Seasons, and Season Configuration with nested sport/division/team tabs, roster management, and division scheduling. Selected data uses a one-minute freshness period and can be manually refreshed. |
+| Database migrations | Roles/legacy user-role conversion, Seasons, optional registration dates, Sport/Division catalogs, SeasonTeam, Player, Roster, eligibility, archive fields, games, and schedule lock. |
 
 ## Implemented Tables
 
-The current ORM models cover `users`, `roles`, `seasons`, `sports`, `divisions`, `season_sports`, `season_sport_divisions`, `season_teams`, `players`, `rosters`, and `season_player_eligibilities`. The migration chain creates these feature tables; its first migration assumes a `users` table already exists.
+The current ORM models cover `users`, `roles`, `seasons`, `sports`, `divisions`, `season_sports`, `season_sport_divisions`, `season_teams`, `players`, `rosters`, `season_player_eligibilities`, `games`, and the singleton `schedule_lock`. The migration chain creates these feature tables; its first migration assumes a `users` table already exists.
 
-The remaining tables in the Version 1 database design are targets, not implemented tables. This includes games, venues, statistics, playoffs, audit logs, API request idempotency, and system settings.
+The remaining tables in the Version 1 database design are targets, not implemented tables. This includes managed venues, statistics, playoffs, audit logs, API request idempotency, and system settings. The current Game model supports scheduling only and differs from the planned game lifecycle schema.
 
 ## Misalignment Register
 
@@ -32,10 +33,12 @@ The remaining tables in the Version 1 database design are targets, not implement
 | High | The one-active-season rule is checked in application code, but concurrent activation requests can both pass the query before either commits. | Add database/transaction-level serialization or a database constraint appropriate to the production database, plus a concurrency test, before production. |
 | Medium | Database design says entities use archival/soft deletion, but current catalog deletion physically deletes unused Sports/Divisions and the models have no archive fields. | Decide whether to implement archive fields/statuses or narrow the soft-delete rule. Until then, catalog deletion is blocked when assigned. |
 | Medium | API docs describe idempotency and an `ApiRequest` table, but the current idempotency decorator is a pass-through and there is no model/migration. | Treat idempotency as planned; implement storage and replay semantics before marking it complete. |
-| Medium | Business rules and API specification describe Rounds, but the canonical database design has no Round table or `round_id` on Game. | Decide whether Rounds are part of Version 1; if yes, define the table and relation in the database design before implementing them. |
+| Medium | Business rules and API specification describe Rounds, but the canonical database design has no Round table or `round_id` on Game. | Rounds are deferred for the initial scheduling feature. Decide whether to add them to V1 before implementing later competition workflows. |
+| Medium | Scheduling stores a free-text venue and local start/end times; the V1 design describes managed Venues and a richer Game lifecycle. | Define managed venues, cancellation, and game status/results before implementing them. Venue conflict checks compare normalized names, not aliases. |
 | Medium | The Season completion transition does not require or set `end_date`, although the date is intended to describe competition dates. | Decide whether completion requires an end date or records one automatically, then encode and test that rule. |
 | Medium | Player gender is stored as short text because the docs call it an enum but do not define allowed values. | Agree on the permitted gender values and convert the column/schema to a validated enum if needed. |
 | Medium | Roster minimum size is checked before moving a season to Ongoing; division gender rules and eligibility policy remain incomplete. | Resolved for roster minimum: transition checks each non-archived team's active players against its division minimum and reports incomplete rosters. Define and enforce gender/eligibility rules separately. |
+| Medium | Season status transitions and roster/team changes are not serialized together. | Before production, test and enforce the Registration-to-Ongoing boundary against concurrent roster and team changes. Archive/restore and roster additions now share a season-sport lock for player conflicts; their concurrency test uses SQLite. |
 | Medium | SeasonTeam registration checks the current date against the registration window but does not persist a dedicated `registered_on` date. | Add an auditable registration date if later reports or eligibility rules need to prove when a team registered. |
 | Low | The full architecture document describes a Unit of Work, but current services commit via `db.session` directly. | Accept this as a deliberate current simplification or add a Unit of Work when transaction coordination grows. |
 | Low | Editing a shared Sport or Division changes the catalog record shown by every season assignment; no per-season snapshot is stored. | Confirm this shared-update behavior is intended. If historical values must be frozen, add versioned/snapshotted configuration before teams and games depend on it. |
@@ -52,7 +55,7 @@ The remaining tables in the Version 1 database design are targets, not implement
 
 ## Migration State
 
-The development database is confirmed at migration head `a6b93c1d5e80`, which includes Player, Roster, eligibility, and archive schema changes. The Season name-width change is included in its parent revision `d29e7b6ac145`.
+The development database was confirmed at revision `b73e19f26d42` on 2026-11-13; this migration adds scheduling tables after the Player, Roster, eligibility, and archive revision `a6b93c1d5e80`. Check the target database's current revision and back it up before applying migrations.
 
 ## Demo Teams and Players
 
@@ -64,7 +67,7 @@ All generated players are fictional and identifiable by `Demo` in their names an
 
 ## Recommended Next Work
 
-1. Validate a complete test season and decide the outstanding team-archive and player-eligibility policies.
-2. Design and build manual game scheduling, including when scheduling is permitted, conflict checks, venues, and the unresolved Round model.
+1. Validate a complete test season and decide the outstanding player-eligibility policies.
+2. Extend manual scheduling with agreed cancellation rules; decide whether managed venues and Rounds are needed.
 3. Add results, finalization, and standings, followed by statistics and playoffs.
 4. Before production or publishing, resolve the fresh-install and Administrator bootstrap gaps, concurrent active-season enforcement, soft-delete policy, and tracked runtime/session artifacts.

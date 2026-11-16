@@ -6,6 +6,35 @@ This document defines the REST API contract for the League Management System.
 
 The API serves as the communication layer between the React frontend and the Flask backend.
 
+This document includes planned API behavior. The implemented frontend endpoints
+are listed in [Frontend Routes and URLs](../frontend/frontend-routes.md).
+
+## Implemented game scheduling
+
+- `GET /api/v1/season-sport-divisions/{assignment_id}/games` lists the division's
+  games publicly, ordered by start time.
+- `POST /api/v1/season-sport-divisions/{assignment_id}/games` requires an
+  Administrator and an Ongoing season. It accepts `home_team_id`, `away_team_id`,
+  `venue`, `starts_at`, and `ends_at`. Times are local ISO datetimes without a
+  timezone offset or fractional seconds.
+- Both teams must be different, active, and assigned to that division. Start must
+  precede end. A normalized venue name or either team cannot overlap another
+  game; adjacent times are allowed. Conflicts return HTTP 409.
+- `PUT /api/v1/games/{game_id}/schedule` requires an Administrator and an
+  Ongoing season. It replaces the schedule using required `venue`, `starts_at`,
+  and `ends_at` fields, without changing the teams. Both the existing and new
+  start times must be later than the server's current local time. The existing
+  game is excluded from its own overlap check. Invalid input returns HTTP 400,
+  a missing game returns 404, and a conflict returns 409.
+- Cancellation, results, Rounds, and managed venues are not implemented.
+
+## Implemented team archive and restore
+
+- Administrator `DELETE /api/v1/season-teams/{team_id}` or `PATCH /api/v1/season-teams/{team_id}/archive` with `{"is_archived": true}` archives a team only while the season is in Registration, regardless of the configured registration dates.
+- `PATCH` with `{"is_archived": false}` restores an archived team only during Registration and within the configured registration date window, if present.
+- Restore returns HTTP 409 with player and team details if a roster player belongs to another active team in the same sport and season. The roster remains unchanged; remove the conflicting player from the other team before retrying.
+- Invalid season status or restore window returns 400, a missing team returns 404, and Administrator authorization is required.
+
 ### API Principles
 
 * RESTful architecture

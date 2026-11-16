@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { AxiosError } from 'axios'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { addPlayerToRoster, getPlayers, getTeamRoster, removePlayerFromRoster, updateRosterEntry, type SeasonStatus } from '../../shared/api/seasons'
+import { addPlayerToRoster, getAvailablePlayers, getTeamRoster, removePlayerFromRoster, updateRosterEntry, type SeasonStatus } from '../../shared/api/seasons'
+import { seasonDataStaleTime } from './queryOptions'
 
 interface TeamRosterSectionProps {
   teamId: number
@@ -12,6 +13,7 @@ interface TeamRosterSectionProps {
   registrationStartDate: string | null
   registrationEndDate: string | null
   isAdmin: boolean
+  isActive: boolean
 }
 
 interface ApiErrorResponse {
@@ -34,7 +36,7 @@ function localDate(): string {
   return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
 }
 
-function TeamRosterSection({ teamId, teamArchived, minimumRosterSize, seasonStatus, registrationStartDate, registrationEndDate, isAdmin }: TeamRosterSectionProps) {
+function TeamRosterSection({ teamId, teamArchived, minimumRosterSize, seasonStatus, registrationStartDate, registrationEndDate, isAdmin, isActive }: TeamRosterSectionProps) {
   const queryClient = useQueryClient()
   const rosterKey = ['team-roster', teamId] as const
   const [playerId, setPlayerId] = useState('')
@@ -43,25 +45,28 @@ function TeamRosterSection({ teamId, teamArchived, minimumRosterSize, seasonStat
   const [voterNumber, setVoterNumber] = useState('')
   const [error, setError] = useState('')
   const [editingJersey, setEditingJersey] = useState<{ rosterId: number; value: string } | null>(null)
-  const rosterQuery = useQuery({ queryKey: rosterKey, queryFn: () => getTeamRoster(teamId) })
-  const playersQuery = useQuery({
-    queryKey: ['players', 'active'],
-    queryFn: () => getPlayers(),
-    enabled: isAdmin,
-  })
+  const rosterQuery = useQuery({ queryKey: rosterKey, queryFn: () => getTeamRoster(teamId), enabled: isActive, staleTime: seasonDataStaleTime })
   const today = localDate()
   const inWindow = !registrationStartDate || !registrationEndDate
     || (today >= registrationStartDate && today <= registrationEndDate)
   const canEdit = isAdmin && !teamArchived && seasonStatus === 'REGISTRATION' && inWindow
+  const playersQuery = useQuery({
+    queryKey: ['players', 'available', teamId],
+    queryFn: () => getAvailablePlayers(teamId),
+    enabled: isActive && canEdit,
+    staleTime: seasonDataStaleTime,
+  })
+  const selectedPlayerId = playersQuery.data?.some((player) => String(player.id) === playerId)
+    ? playerId : ''
   const activeRosterCount = rosterQuery.data?.filter((entry) => !entry.player.is_archived).length
 
   const refresh = () => Promise.all([
     queryClient.invalidateQueries({ queryKey: rosterKey }),
-    queryClient.invalidateQueries({ queryKey: ['players'] }),
+    queryClient.invalidateQueries({ queryKey: ['players', 'available'] }),
   ])
   const addMutation = useMutation({
     mutationFn: () => addPlayerToRoster(teamId, {
-      player_id: Number(playerId),
+      player_id: Number(selectedPlayerId),
       jersey_number: jerseyNumber.trim(),
       voter_verified: voterVerified,
       voter_number: voterNumber.trim() || null,
@@ -75,14 +80,17 @@ function TeamRosterSection({ teamId, teamArchived, minimumRosterSize, seasonStat
       setError('')
       await refresh()
     },
-    onError: (caught) => setError(errorMessage(caught)),
+    onError: async (caught) => {
+      setError(errorMessage(caught))
+      await refresh()
+    },
   })
   const updateMutation = useMutation({
     mutationFn: (entry: { rosterId: number; jersey: string }) => updateRosterEntry(teamId, entry.rosterId, entry.jersey),
     onSuccess: async () => {
       setEditingJersey(null)
       setError('')
-      await refresh()
+      await queryClient.invalidateQueries({ queryKey: rosterKey })
     },
     onError: (caught) => setError(errorMessage(caught)),
   })
@@ -145,9 +153,11 @@ function TeamRosterSection({ teamId, teamArchived, minimumRosterSize, seasonStat
       {canEdit ? (
         <form onSubmit={(event) => { event.preventDefault(); setError(''); addMutation.mutate() }} className="roster-add-form">
           <label style={{ display: 'grid', gap: '0.25rem' }}>Player
-            <select required value={playerId} onChange={(event) => setPlayerId(event.target.value)}>
+            <select required value={selectedPlayerId} disabled={playersQuery.isFetching || playersQuery.isError} onChange={(event) => setPlayerId(event.target.value)}>
               <option value="">Select player</option>
-              {playersQuery.data?.map((player) => <option key={player.id} value={player.id}>{player.first_name} {player.last_name}</option>)}
+              {!playersQuery.isFetching && !playersQuery.isError
+                ? playersQuery.data?.map((player) => <option key={player.id} value={player.id}>{player.first_name} {player.last_name}</option>)
+                : null}
             </select>
           </label>
           <label style={{ display: 'grid', gap: '0.25rem' }}>Jersey number
@@ -159,10 +169,14 @@ function TeamRosterSection({ teamId, teamArchived, minimumRosterSize, seasonStat
           <label style={{ display: 'grid', gap: '0.25rem' }}>Voter number (required for adults)
             <input maxLength={100} value={voterNumber} onChange={(event) => setVoterNumber(event.target.value)} />
           </label>
-          <button type="submit" disabled={addMutation.isPending || !playerId}>
+          <button type="submit" disabled={addMutation.isPending || playersQuery.isFetching || playersQuery.isError || !selectedPlayerId}>
             {addMutation.isPending ? 'Adding...' : 'Add player'}
           </button>
-          {playersQuery.data?.length === 0 ? <p>No active players. <Link to="/players">Create player profiles</Link>.</p> : null}
+          {playersQuery.isFetching ? <p>Loading available players...</p> : null}
+          {playersQuery.isError ? <p role="alert">{errorMessage(playersQuery.error)}</p> : null}
+          {!playersQuery.isFetching && !playersQuery.isError && playersQuery.data?.length === 0 ? (
+            <p>No available players for this sport and season. <Link to="/players">Create player profiles</Link>.</p>
+          ) : null}
         </form>
       ) : isAdmin ? (
         <p style={{ color: '#64748b' }}>Roster changes are available only during the season registration period.</p>

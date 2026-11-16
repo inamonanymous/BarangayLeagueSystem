@@ -4,6 +4,7 @@ from datetime import date
 from app import create_app
 from app.application.catalogs.services import CatalogService
 from app.application.players.services import PlayerService
+from app.application.rosters.policies import RosterPolicy
 from app.application.rosters.services import RosterService
 from app.application.teams.policies import TeamPolicy
 from app.application.teams.services import SeasonTeamService
@@ -112,7 +113,7 @@ def verify_demo_teams() -> None:
                 ):
                     errors.append(f"{label}: demo player missing, changed, archived, or not on this roster.")
                     continue
-                if RosterService._is_adult(player.birthdate):
+                if RosterPolicy.is_adult(player.birthdate, date.today()):
                     eligibility = SeasonPlayerEligibility.query.filter_by(
                         season_id=season.id, player_id=player.id
                     ).first()

@@ -1,0 +1,32 @@
+@startuml
+title Main data relationships - learning map
+skinparam shadowing false
+rectangle Season
+rectangle "Sport catalog" as Sport
+rectangle SeasonSport
+rectangle "Division catalog" as Division
+rectangle SeasonSportDivision
+rectangle SeasonTeam
+rectangle Roster
+rectangle "Player profile" as Player
+rectangle SeasonPlayerEligibility
+rectangle Game
+rectangle "Singleton ScheduleLock" as ScheduleLock
+Season --> SeasonSport
+Sport --> SeasonSport
+SeasonSport --> SeasonSportDivision
+Division --> SeasonSportDivision
+SeasonSportDivision --> SeasonTeam
+SeasonTeam --> Roster
+Player --> Roster
+Season --> SeasonPlayerEligibility
+Player --> SeasonPlayerEligibility
+SeasonSportDivision --> Game
+SeasonTeam --> Game : home team
+SeasonTeam --> Game : away team
+ScheduleLock --> Game : serializes schedule writes
+note bottom
+  This is a learning map, not a complete ER diagram.
+  Removing a roster entry does not delete the player.
+end note
+@enduml

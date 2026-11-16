@@ -1,0 +1,29 @@
+@startuml
+title Frontend selection and query cache
+skinparam shadowing false
+start
+:Open season configuration;
+:Load season configuration and catalogs;
+:Select sport and division tabs;
+:Enable team and game queries for selected division;
+:Select team tab;
+:Enable roster query for selected team;
+if (Administrator can edit roster?) then (yes)
+  :Enable available-player query;
+else (no)
+  :Show read-only roster;
+endif
+:Reuse fresh cached data while switching tabs;
+if (Relevant mutation or Refresh data?) then (yes)
+  :Invalidate affected queries and reload active data;
+else (no)
+  :Reuse data until it becomes stale;
+  :Later selection, page return, or refocus may refetch;
+endif
+stop
+legend bottom
+  Freshness is one minute, not a polling timer.
+  Hidden panels stay mounted to preserve drafts,
+  but their queries are disabled.
+endlegend
+@enduml

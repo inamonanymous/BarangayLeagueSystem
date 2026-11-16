@@ -1,6 +1,18 @@
+from datetime import datetime
+
 from sqlalchemy import func
 
 from app.application.common.utils.base_classes import BaseRepository
+from app.application.rosters.types import (
+    DivisionSnapshot,
+    PlayerData,
+    PlayerSnapshot,
+    RosterData,
+    RosterEntryData,
+    RosterSnapshot,
+    SeasonSnapshot,
+    TeamSnapshot,
+)
 from app.domain.models.divisions import Division
 from app.domain.models.players import Player
 from app.domain.models.rosters import Roster
@@ -10,33 +22,66 @@ from app.domain.models.season_sports import SeasonSport
 from app.domain.models.season_teams import SeasonTeam
 from app.domain.models.seasons import Season
 from app.extensions import db
+from app.infrastructure.database.team_roster_lock import lock_team_roster
 
 
 class RosterRepository(BaseRepository):
-    def get_team(self, team_id: int) -> SeasonTeam | None:
-        return db.session.get(SeasonTeam, team_id)
+    def lock_team_roster(self, team_id: int) -> None:
+        lock_team_roster(team_id)
 
-    def get_player(self, player_id: int) -> Player | None:
-        return db.session.get(Player, player_id)
+    def get_team(self, team_id: int, *, for_update: bool = False) -> TeamSnapshot | None:
+        query = SeasonTeam.query.filter_by(id=team_id)
+        if for_update:
+            query = query.populate_existing().with_for_update()
+        team = query.first()
+        if team is None:
+            return None
+        return TeamSnapshot(team.id, team.season_sport_division_id, team.is_archived)
 
-    def get_roster(self, roster_id: int) -> Roster | None:
-        return db.session.get(Roster, roster_id)
+    def get_player(self, player_id: int) -> PlayerSnapshot | None:
+        player = db.session.get(Player, player_id)
+        if player is None:
+            return None
+        return PlayerSnapshot(player.birthdate, player.is_archived)
 
-    def get_season_details(self, team: SeasonTeam) -> tuple[Season | None, Division | None, int | None]:
+    def get_roster(self, roster_id: int) -> RosterSnapshot | None:
+        roster = db.session.get(Roster, roster_id)
+        if roster is None:
+            return None
+        return RosterSnapshot(roster.id, roster.season_team_id)
+
+    def get_season_details(
+        self, team: TeamSnapshot,
+    ) -> tuple[SeasonSnapshot | None, DivisionSnapshot | None, int | None]:
         assignment = db.session.get(SeasonSportDivision, team.season_sport_division_id)
         if assignment is None:
             return None, None, None
         season_sport = db.session.get(SeasonSport, assignment.season_sport_id)
         division = db.session.get(Division, assignment.division_id)
+        division_snapshot = DivisionSnapshot(division.maximum_roster_size) if division is not None else None
         if season_sport is None:
-            return None, division, None
-        return db.session.get(Season, season_sport.season_id), division, season_sport.sport_id
+            return None, division_snapshot, None
+        season = db.session.get(Season, season_sport.season_id)
+        season_snapshot = (
+            SeasonSnapshot(
+                season.id, season.season_status,
+                season.registration_start_date, season.registration_end_date,
+            ) if season is not None else None
+        )
+        return season_snapshot, division_snapshot, season_sport.sport_id
 
-    def list_for_team(self, team_id: int) -> list[Roster]:
-        return Roster.query.filter_by(season_team_id=team_id).order_by(Roster.jersey_number.asc()).all()
-
-    def list_active_players(self) -> list[Player]:
-        return Player.query.filter_by(is_archived=False).order_by(Player.last_name, Player.first_name).all()
+    def list_for_team(self, team_id: int) -> list[RosterEntryData]:
+        rows = (
+            db.session.query(Roster, Player)
+            .join(Player, Player.id == Roster.player_id)
+            .filter(Roster.season_team_id == team_id)
+            .order_by(Roster.jersey_number.asc())
+            .all()
+        )
+        return [
+            RosterEntryData(**self._roster_data(roster), player=self._player_data(player))
+            for roster, player in rows
+        ]
 
     def player_already_on_team(self, team_id: int, player_id: int) -> bool:
         return Roster.query.filter_by(season_team_id=team_id, player_id=player_id).first() is not None
@@ -48,18 +93,34 @@ class RosterRepository(BaseRepository):
         sport_id: int,
     ) -> bool:
         return (
-            db.session.query(Roster.id)
+            self._players_on_same_sport_in_season(season_id, sport_id)
+            .filter(Roster.player_id == player_id)
+            .with_for_update()
+            .first()
+            is not None
+        )
+
+    def list_available_players(self, season_id: int, sport_id: int) -> list[PlayerData]:
+        assigned_players = self._players_on_same_sport_in_season(season_id, sport_id)
+        players = (
+            Player.query
+            .filter(Player.is_archived.is_(False), ~Player.id.in_(assigned_players))
+            .order_by(Player.last_name, Player.first_name, Player.id)
+            .all()
+        )
+        return [self._player_data(player) for player in players]
+
+    def _players_on_same_sport_in_season(self, season_id: int, sport_id: int):
+        return (
+            db.session.query(Roster.player_id)
             .join(SeasonTeam, Roster.season_team_id == SeasonTeam.id)
             .join(SeasonSportDivision, SeasonTeam.season_sport_division_id == SeasonSportDivision.id)
             .join(SeasonSport, SeasonSportDivision.season_sport_id == SeasonSport.id)
             .filter(
-                Roster.player_id == player_id,
                 SeasonTeam.is_archived.is_(False),
                 SeasonSport.season_id == season_id,
                 SeasonSport.sport_id == sport_id,
             )
-            .first()
-            is not None
         )
 
     def jersey_exists(self, team_id: int, jersey_number: str, *, exclude_id: int | None = None) -> bool:
@@ -74,14 +135,52 @@ class RosterRepository(BaseRepository):
     def roster_count(self, team_id: int) -> int:
         return Roster.query.filter_by(season_team_id=team_id).count()
 
-    def find_eligibility(self, season_id: int, player_id: int) -> SeasonPlayerEligibility | None:
-        return SeasonPlayerEligibility.query.filter_by(
-            season_id=season_id,
-            player_id=player_id,
+    def save_eligibility(
+        self, season_id: int, player_id: int, voter_number: str,
+        actor_id: int, notes: str | None,
+    ) -> None:
+        eligibility = SeasonPlayerEligibility.query.filter_by(
+            season_id=season_id, player_id=player_id,
         ).first()
+        normalized_notes = (notes or "").strip()
+        if eligibility is None:
+            eligibility = SeasonPlayerEligibility(
+                season_id=season_id, player_id=player_id, is_voter_verified=True,
+                voter_number=voter_number, verified_by=actor_id,
+                verified_at=datetime.utcnow(), notes=normalized_notes or None,
+            )
+            db.session.add(eligibility)
+        else:
+            eligibility.is_voter_verified = True
+            eligibility.voter_number = voter_number
+            eligibility.verified_by = actor_id
+            eligibility.verified_at = datetime.utcnow()
+            eligibility.notes = normalized_notes or eligibility.notes
 
-    def add(self, entity) -> None:
-        db.session.add(entity)
+    def add_roster(self, team_id: int, player_id: int, jersey_number: str) -> RosterData:
+        roster = Roster(season_team_id=team_id, player_id=player_id, jersey_number=jersey_number)
+        db.session.add(roster)
+        db.session.flush()
+        return self._roster_data(roster)
 
-    def delete(self, entity) -> None:
-        db.session.delete(entity)
+    def update_jersey(self, roster_id: int, jersey_number: str) -> RosterData:
+        roster = db.session.get(Roster, roster_id)
+        if roster is None:
+            raise LookupError("Roster entry not found for this team.")
+        roster.jersey_number = jersey_number
+        db.session.flush()
+        return self._roster_data(roster)
+
+    def delete_roster(self, roster_id: int) -> None:
+        roster = db.session.get(Roster, roster_id)
+        if roster is None:
+            raise LookupError("Roster entry not found for this team.")
+        db.session.delete(roster)
+
+    @staticmethod
+    def _roster_data(roster: Roster) -> RosterData:
+        return RosterData(**roster.to_dict())
+
+    @staticmethod
+    def _player_data(player: Player) -> PlayerData:
+        return PlayerData(**player.to_dict())

@@ -1,0 +1,33 @@
+@startuml
+title Current system - typical workflow
+skinparam shadowing false
+start
+:Open the application;
+if (Read public information?) then (yes)
+  :View seasons, configuration,\nteams, rosters, or games;
+  :Display API data;
+else (administer)
+  :Sign in as an Administrator;
+  :Create season in Planning;
+  :Create or choose sports and divisions;
+  :Assign sports and divisions to season;
+  :Move season to Registration;
+  :Create player profiles and register teams;
+  :Assign players to team rosters;
+  while (An active team is below its roster minimum?) is (yes)
+    :Complete the affected rosters;
+  endwhile (no)
+  :Request transition to Ongoing;
+  if (Transition allowed?) then (yes)
+    :Schedule and reschedule games;
+    :Complete, then archive the season;
+  else (no)
+    :Return an error;
+  endif
+endif
+stop
+legend bottom
+  This is a typical workflow, not an enforced sequence.
+  The Ongoing check does not require at least one team.
+endlegend
+@enduml

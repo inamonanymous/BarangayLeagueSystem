@@ -1,5 +1,14 @@
 # Technology Stack
 
+> **Stack plan and current status:** This document includes proposed tools and
+> deployment choices. The current backend uses Python 3.10 in the existing
+> development environment, Flask-Session (not Flask-Login), SQLAlchemy,
+> Flask-Migrate, and Marshmallow. The frontend uses React, TypeScript, Vite,
+> Axios, React Router, TanStack Query, and a shared CSS stylesheet. Swagger,
+> Docker, Vitest, persistent API idempotency, and a production deployment are
+> not currently set up. See the [README](../../README.md) for setup and the
+> [implementation tracker](implementation-alignment.md) for known gaps.
+
 ## Overview
 
 This document defines the technologies, frameworks, libraries, and tools used by the League Management System.
@@ -33,7 +42,7 @@ MySQL Database
 
 | Technology | Version |
 | ---------- | ------- |
-| Python     | 3.12+   |
+| Python     | 3.10 in the existing development environment |
 
 ---
 
@@ -97,7 +106,7 @@ Responsibilities:
 
 | Technology  | Purpose                |
 | ----------- | ---------------------- |
-| Flask-Login | Session authentication |
+| Flask-Session | Server-side session storage |
 
 Version 1 Authentication Strategy:
 
@@ -115,7 +124,7 @@ Refresh Tokens
 
 ---
 
-## API Documentation
+## API Documentation (planned)
 
 | Technology        | Purpose           |
 | ----------------- | ----------------- |
@@ -178,11 +187,11 @@ Reason:
 
 ---
 
-## Styling Framework
+## Styling Framework (proposed)
 
 | Technology | Purpose              |
 | ---------- | -------------------- |
-| Bootstrap  | UI styling framework |
+| Bootstrap  | Proposed UI styling framework; current UI uses a shared CSS stylesheet |
 
 Reason:
 
@@ -220,6 +229,9 @@ Responsibilities:
 | Technology        | Purpose                 |
 | ----------------- | ----------------------- |
 | React Context API | Global state management |
+
+Currently, TanStack Query manages server-state caching; component state manages
+local UI state.
 
 Version 1 shall not use:
 
@@ -267,7 +279,7 @@ API Tests
 
 ---
 
-## Frontend Testing
+## Frontend Testing (planned)
 
 | Technology | Purpose               |
 | ---------- | --------------------- |
@@ -289,7 +301,7 @@ Swagger UI
 
 # Containerization
 
-## Container Platform
+## Container Platform (planned)
 
 | Technology     | Purpose                       |
 | -------------- | ----------------------------- |
@@ -348,7 +360,9 @@ Centralized logging may be introduced in future versions.
 
 # Caching
 
-Caching shall NOT be implemented in Version 1.
+The frontend currently uses TanStack Query's in-memory cache. Season-page data
+is fresh for one minute and can be manually refreshed. A separate server-side
+cache has not been introduced.
 
 Potential future technologies:
 
@@ -405,14 +419,14 @@ API responses shall follow a standardized response structure.
 
 # Security Standards
 
-Version 1 security measures:
+Version 1 security targets (not all implemented):
 
 * Session Authentication
 * Password Hashing
 * Authorization by Role
-* CSRF Protection
+* CSRF Protection (planned)
 * Input Validation
-* API Idempotency
+* Persistent API Idempotency (planned)
 
 Future enhancements:
 

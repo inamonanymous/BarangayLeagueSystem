@@ -1,0 +1,45 @@
+@startuml
+title Request flow through the code
+skinparam shadowing false
+start
+:React page or component;
+:Axios API function;
+:Flask route;
+if (Protected action?) then (yes)
+  :Check session, active user, and role;
+  if (Access allowed?) then (yes)
+  else (no)
+    :Return authentication or permission error;
+    stop
+  endif
+else (no)
+endif
+:Validate input with a schema when needed;
+if (Input valid?) then (yes)
+else (no)
+  :Return validation error;
+  stop
+endif
+:Call application service;
+if (Policy used?) then (yes)
+  :Apply policy checks;
+else (no)
+endif
+if (Request rejected?) then (yes)
+  :Return error;
+  stop
+else (no)
+endif
+if (Repository used?) then (yes)
+  :Query through repository;
+else (no)
+  :Continue without a repository query;
+endif
+:SQLAlchemy models and database;
+:Return response to frontend;
+stop
+legend bottom
+  Not every request uses every layer.
+  Services coordinate checks and own transactions.
+endlegend
+@enduml

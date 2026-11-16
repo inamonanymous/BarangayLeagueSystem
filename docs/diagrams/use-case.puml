@@ -1,9 +1,14 @@
 @startuml
-title League Management System - Use Case Diagram
+title League Management System - Planned V1 Use Cases (not all implemented)
 
 left to right direction
 skinparam packageStyle rectangle
 skinparam shadowing false
+legend bottom
+  Target design, not current permissions.
+  Results, standings, statistics, and playoffs are not implemented.
+  Player-profile management is currently Administrator-only.
+endlegend
 
 actor Administrator
 actor Encoder

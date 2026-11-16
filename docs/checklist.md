@@ -1,6 +1,6 @@
 # Project Roadmap
 
-Last reviewed: 2026-11-13
+Last reviewed: 2026-11-15
 
 This roadmap describes the current implementation and proposed next milestones. `[x]` means implemented, `[~]` means partial, and `[ ]` means planned. Design documents may describe features that are not implemented; see the [alignment tracker](backend/implementation-alignment.md) for known differences.
 
@@ -11,19 +11,23 @@ This roadmap describes the current implementation and proposed next milestones. 
 - [~] Users and roles: role checks and Administrator-created users exist; account management remains.
 - [~] Seasons, sports, and divisions: lifecycle, catalogs, and season assignments exist; stronger database enforcement and usability work remain.
 - [~] Players and eligibility: player CRUD/archive and adult voter verification exist; an independent voter-registration source and division eligibility rules remain unresolved.
-- [~] Teams and rosters: registration, edits, archive/restore, roster management, and the minimum-roster gate before Ongoing exist. Team archive behavior after registration remains a policy decision.
+- [~] Teams and rosters: registration, edits, archive/restore, roster management, and the minimum-roster gate before Ongoing exist. Team archive/restore is restricted to Registration, with conflict checks on restore.
 - [x] Guided division-to-team-to-roster frontend, roster-readiness indicators, and development demo data.
+- [~] Manual game scheduling: create, list, and reschedule games in Ongoing seasons, with start/end overlap checks; cancellation and managed venues remain.
 - [~] Dashboard: basic account dashboard exists; league reporting is planned.
 
 ## Proposed implementation order
 
 1. **Complete and validate a test season**
    - [ ] Resolve incomplete team rosters before moving the season to Ongoing.
-   - [ ] Decide post-registration team archive behavior and document outstanding eligibility rules.
+   - [x] Decide post-registration team archive behavior.
+   - [ ] Document outstanding eligibility rules.
 2. **Manual game scheduling**
-   - [ ] Agree on when scheduling is allowed, venue requirements, conflict rules, and whether Rounds belong in V1.
-   - [ ] Add the necessary database migrations, backend models, policies, services, API, and tests.
-   - [ ] Add a schedule creation and listing interface.
+   - [x] Schedule only during Ongoing; use local start/end times and free-text venues; defer Rounds.
+   - [x] Add migration, backend service, API, conflict checks, and tests.
+   - [x] Add a schedule creation and listing interface.
+   - [x] Reschedule a game before its start, retaining its teams.
+   - [ ] Define cancellation and managed venue workflows.
 3. **Results and standings**
    - [ ] Record and finalize game scores; define correction/reopening rules.
    - [ ] Calculate and display standings from finalized games.
@@ -35,7 +39,8 @@ This roadmap describes the current implementation and proposed next milestones. 
 - [x] Project overview, features, roles, workflows, business rules, database design, ERD, architecture, tech stack, and API specification documents.
 - [x] Frontend overview, architecture, and route reference.
 - [x] Use-case and component diagrams.
-- [ ] Frontend coding standards and activity/sequence diagrams.
+- [x] Feature-by-feature activity flowcharts, including standalone PlantUML previews.
+- [ ] Frontend coding standards and sequence diagrams.
 - [ ] Logging, persistent API idempotency, and broader reusable frontend components.
 - [ ] Reconcile the planned API and design documents with implemented behavior as features change.
 

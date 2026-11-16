@@ -177,6 +177,40 @@ export async function getTeamsForDivision(divisionAssignmentId: number): Promise
   return response.data.data
 }
 
+export interface ScheduledGame {
+  id: number
+  season_sport_division_id: number
+  home_team_id: number
+  away_team_id: number
+  venue: string
+  starts_at: string
+  ends_at: string
+}
+
+export type GameScheduleDetails = Pick<ScheduledGame, 'venue' | 'starts_at' | 'ends_at'>
+
+export async function getDivisionGames(assignmentId: number): Promise<ScheduledGame[]> {
+  const response = await api.get<ApiResponse<ScheduledGame[]>>(
+    `/season-sport-divisions/${assignmentId}/games`,
+  )
+  return response.data.data
+}
+
+export async function scheduleGame(
+  assignmentId: number,
+  payload: Omit<ScheduledGame, 'id' | 'season_sport_division_id'>,
+): Promise<ScheduledGame> {
+  const response = await api.post<ApiResponse<ScheduledGame>>(
+    `/season-sport-divisions/${assignmentId}/games`, payload,
+  )
+  return response.data.data
+}
+
+export async function rescheduleGame(gameId: number, payload: GameScheduleDetails): Promise<ScheduledGame> {
+  const response = await api.put<ApiResponse<ScheduledGame>>(`/games/${gameId}/schedule`, payload)
+  return response.data.data
+}
+
 export async function registerTeam(
   divisionAssignmentId: number,
   payload: Omit<SeasonTeam, 'id' | 'season_sport_division_id' | 'is_archived' | 'created_at' | 'updated_at'>,
@@ -221,6 +255,11 @@ export async function getPlayers(includeArchived = false): Promise<Player[]> {
   const response = await api.get<ApiResponse<Player[]>>('/players/', {
     params: { include_archived: includeArchived },
   })
+  return response.data.data
+}
+
+export async function getAvailablePlayers(teamId: number): Promise<Player[]> {
+  const response = await api.get<ApiResponse<Player[]>>(`/season-teams/${teamId}/available-players`)
   return response.data.data
 }
 

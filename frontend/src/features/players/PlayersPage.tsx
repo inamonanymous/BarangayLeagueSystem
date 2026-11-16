@@ -40,8 +40,11 @@ function PlayersPage() {
     enabled: isAdmin,
   })
 
-  function refreshPlayers() {
-    return queryClient.invalidateQueries({ queryKey: ['players'] })
+  function refreshPlayers(includeRosters = false) {
+    return Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['players'] }),
+      ...(includeRosters ? [queryClient.invalidateQueries({ queryKey: ['team-roster'] })] : []),
+    ])
   }
 
   const createMutation = useMutation({
@@ -77,7 +80,7 @@ function PlayersPage() {
     onSuccess: async () => {
       setEditingPlayer(null)
       setError('')
-      await refreshPlayers()
+      await refreshPlayers(true)
     },
     onError: (caught) => setError(errorMessage(caught)),
   })
@@ -86,7 +89,7 @@ function PlayersPage() {
       setPlayerArchived(playerId, archived),
     onSuccess: async () => {
       setError('')
-      await refreshPlayers()
+      await refreshPlayers(true)
     },
     onError: (caught) => setError(errorMessage(caught)),
   })

@@ -22,10 +22,42 @@ a {
   color: inherit;
 }
 
-.season-team-list {
-  display: grid;
-  gap: 0.75rem;
+.selection-tabs > [role="tabpanel"][hidden] {
+  display: none !important;
+}
+
+.selection-tabs {
+  min-width: 0;
   margin: 0.75rem 0;
+}
+
+.selection-tabs__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+
+.selection-tabs__list [role="tab"] {
+  padding: 0.45rem 0.75rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #334155;
+  cursor: pointer;
+  font: inherit;
+}
+
+.selection-tabs__list [role="tab"][aria-selected="true"] {
+  border-color: #0f766e;
+  background: #0f766e;
+  color: white;
+  font-weight: 600;
+}
+
+.selection-tabs__list [role="tab"]:focus-visible {
+  outline: 3px solid #38bdf8;
+  outline-offset: 2px;
 }
 
 .season-team-card {
@@ -77,6 +109,45 @@ a {
   align-items: end;
   gap: 0.65rem;
   margin: 0.75rem 0;
+}
+
+.division-schedule {
+  width: 100%;
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.division-schedule h5 {
+  margin: 0 0 0.35rem;
+}
+
+.schedule-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  align-items: end;
+  gap: 0.65rem;
+  margin-top: 0.75rem;
+}
+
+.schedule-form label,
+.schedule-entry {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.schedule-list {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0;
+  list-style: none;
+}
+
+.schedule-entry {
+  padding: 0.65rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
 }
 
 .status-badge {

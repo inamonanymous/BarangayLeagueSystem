@@ -1,0 +1,33 @@
+@startuml
+title Register or edit a team
+skinparam shadowing false
+start
+:Administrator enters team and barangay details;
+:Route validates request;
+if (Assignment and season exist?) then (yes)
+else (no)
+  :Reject;
+  stop
+endif
+if (Registration status and date window allow changes?) then (yes)
+else (no)
+  :Reject;
+  stop
+endif
+if (Editing an archived team?) then (yes)
+  :Reject;
+  stop
+else (no)
+endif
+:Normalize team details;
+if (Name already used in division?) then (yes)
+  :Reject;
+else (no)
+  :Save SeasonTeam and refresh team list;
+endif
+stop
+legend bottom
+  The window is inclusive when both dates are set.
+  Name checks include archived teams.
+endlegend
+@enduml

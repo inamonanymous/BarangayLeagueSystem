@@ -51,30 +51,21 @@ export async function transitionSeason(seasonId: number, season_status: SeasonSt
   return response.data.data
 }
 
-export interface Sport {
+export interface SeasonSportConfiguration {
   id: number
+  season_id: number
   name: string
   description: string | null
+  divisions: ConfiguredDivision[]
 }
 
-export interface Division {
+export interface ConfiguredDivision {
   id: number
+  season_sport_id: number
   name: string
   gender_policy: 'ANY' | 'MALE_ONLY' | 'FEMALE_ONLY' | 'MIXED'
   minimum_roster_size: number
   maximum_roster_size: number
-}
-
-export interface ConfiguredDivision extends Division {
-  assignment_id: number
-}
-
-export interface SeasonSportConfiguration {
-  id: number
-  season_id: number
-  sport_id: number
-  sport: Sport
-  divisions: ConfiguredDivision[]
 }
 
 export interface SeasonConfiguration {
@@ -97,66 +88,41 @@ export interface SeasonTeam {
 
 export async function getSeasonConfiguration(seasonId: number): Promise<SeasonConfiguration> {
   const response = await api.get<ApiResponse<SeasonConfiguration>>(`/seasons/${seasonId}/configuration`)
+  const configuration = response.data.data
+  if (configuration.sports.some((sport) =>
+    typeof sport.name !== 'string'
+    || sport.divisions.some((division) => division.season_sport_id !== sport.id)
+  )) {
+    throw new Error('The backend is using an older season configuration. Your data may still exist; back up and migrate the database, then restart the backend before continuing.')
+  }
+  return configuration
+}
+
+export async function createSeasonSport(seasonId: number, name: string, description: string): Promise<Omit<SeasonSportConfiguration, 'divisions'>> {
+  const response = await api.post<ApiResponse<Omit<SeasonSportConfiguration, 'divisions'>>>(`/seasons/${seasonId}/sports`, { name, description })
   return response.data.data
 }
 
-export async function getCatalogSports(): Promise<Sport[]> {
-  const response = await api.get<ApiResponse<Sport[]>>('/catalogs/sports')
+export async function updateSeasonSport(seasonId: number, sportId: number, name: string, description: string): Promise<Omit<SeasonSportConfiguration, 'divisions'>> {
+  const response = await api.put<ApiResponse<Omit<SeasonSportConfiguration, 'divisions'>>>(`/seasons/${seasonId}/sports/${sportId}`, { name, description })
   return response.data.data
 }
 
-export async function getCatalogDivisions(): Promise<Division[]> {
-  const response = await api.get<ApiResponse<Division[]>>('/catalogs/divisions')
-  return response.data.data
-}
-
-export async function createCatalogSport(name: string, description: string): Promise<Sport> {
-  const response = await api.post<ApiResponse<Sport>>('/catalogs/sports', { name, description })
-  return response.data.data
-}
-
-export async function updateCatalogSport(sportId: number, name: string, description: string): Promise<Sport> {
-  const response = await api.put<ApiResponse<Sport>>(`/catalogs/sports/${sportId}`, { name, description })
-  return response.data.data
-}
-
-export async function deleteCatalogSport(sportId: number): Promise<void> {
-  await api.delete(`/catalogs/sports/${sportId}`)
-}
-
-export async function createCatalogDivision(payload: {
+export type DivisionPayload = {
   name: string
-  gender_policy: Division['gender_policy']
+  gender_policy: ConfiguredDivision['gender_policy']
   minimum_roster_size: number
   maximum_roster_size: number
-}): Promise<Division> {
-  const response = await api.post<ApiResponse<Division>>('/catalogs/divisions', payload)
+}
+
+export async function createSeasonDivision(sportId: number, payload: DivisionPayload): Promise<ConfiguredDivision> {
+  const response = await api.post<ApiResponse<ConfiguredDivision>>(`/seasons/sports/${sportId}/divisions`, payload)
   return response.data.data
 }
 
-export async function updateCatalogDivision(divisionId: number, payload: {
-  name: string
-  gender_policy: Division['gender_policy']
-  minimum_roster_size: number
-  maximum_roster_size: number
-}): Promise<Division> {
-  const response = await api.put<ApiResponse<Division>>(`/catalogs/divisions/${divisionId}`, payload)
+export async function updateSeasonDivision(sportId: number, divisionId: number, payload: DivisionPayload): Promise<ConfiguredDivision> {
+  const response = await api.put<ApiResponse<ConfiguredDivision>>(`/seasons/sports/${sportId}/divisions/${divisionId}`, payload)
   return response.data.data
-}
-
-export async function deleteCatalogDivision(divisionId: number): Promise<void> {
-  await api.delete(`/catalogs/divisions/${divisionId}`)
-}
-
-export async function assignSportToSeason(seasonId: number, sport_id: number): Promise<void> {
-  await api.post(`/seasons/${seasonId}/sports`, { sport_id })
-}
-
-export async function assignDivisionToSeasonSport(
-  seasonSportId: number,
-  division_id: number,
-): Promise<void> {
-  await api.post(`/seasons/sports/${seasonSportId}/divisions`, { division_id })
 }
 
 export async function removeSportFromSeason(seasonId: number, seasonSportId: number): Promise<void> {
@@ -185,9 +151,108 @@ export interface ScheduledGame {
   venue: string
   starts_at: string
   ends_at: string
+  result_status: 'SCHEDULED' | 'FOR_ENCODING' | 'FINALIZED'
+  home_score: number | null
+  away_score: number | null
+  finalized_at: string | null
+  finalized_by: number | null
 }
 
 export type GameScheduleDetails = Pick<ScheduledGame, 'venue' | 'starts_at' | 'ends_at'>
+export type NewGameSchedule = GameScheduleDetails & Pick<ScheduledGame, 'home_team_id' | 'away_team_id'>
+
+export interface Standing {
+  rank: number
+  team_id: number
+  team_name: string
+  is_archived: boolean
+  wins: number
+  losses: number
+}
+
+export interface StatisticType {
+  id: number
+  name: string
+  abbreviation: string
+  required: boolean
+  is_scoring: boolean
+}
+
+export interface StatisticConfiguration {
+  season_sport_id: number
+  locked: boolean
+  allow_team_points: boolean
+  types: StatisticType[]
+}
+
+export interface GameStatistics {
+  configuration: StatisticConfiguration
+  teams: {
+    team_id: number
+    name: string
+    team_points: number | null
+    players: {
+      player_id: number
+      name: string
+      jersey_number: string
+      status: 'PLAYED' | 'DNP' | null
+      values: Record<string, string>
+    }[]
+  }[]
+}
+
+export type StatisticConfigurationInput = {
+  allow_team_points: boolean
+  types: Omit<StatisticType, 'id'>[]
+}
+
+export type GameStatisticsInput = {
+  teams: {
+    team_id: number
+    team_points: number | null
+    players: Pick<GameStatistics['teams'][number]['players'][number], 'player_id' | 'status' | 'values'>[]
+  }[]
+}
+
+export async function getStatisticConfiguration(sportId: number): Promise<StatisticConfiguration> {
+  const response = await api.get<ApiResponse<StatisticConfiguration>>(`/season-sports/${sportId}/statistics-configuration`)
+  return response.data.data
+}
+
+export async function saveStatisticConfiguration(sportId: number, payload: StatisticConfigurationInput): Promise<StatisticConfiguration> {
+  const response = await api.put<ApiResponse<StatisticConfiguration>>(`/season-sports/${sportId}/statistics-configuration`, payload)
+  return response.data.data
+}
+
+export async function getGameStatistics(gameId: number): Promise<GameStatistics> {
+  const response = await api.get<ApiResponse<GameStatistics>>(`/games/${gameId}/statistics`)
+  return response.data.data
+}
+
+export async function saveGameStatistics(gameId: number, payload: GameStatisticsInput): Promise<GameStatistics> {
+  const response = await api.put<ApiResponse<GameStatistics>>(`/games/${gameId}/statistics`, payload)
+  return response.data.data
+}
+
+export async function getStandings(assignmentId: number): Promise<Standing[]> {
+  const response = await api.get<ApiResponse<Standing[]>>(`/season-sport-divisions/${assignmentId}/standings`)
+  return response.data.data
+}
+
+export async function saveGameResult(gameId: number, home_score: number, away_score: number): Promise<ScheduledGame> {
+  const response = await api.put<ApiResponse<ScheduledGame>>(`/games/${gameId}/result`, { home_score, away_score })
+  return response.data.data
+}
+
+export async function finalizeGame(gameId: number): Promise<ScheduledGame> {
+  const response = await api.post<ApiResponse<ScheduledGame>>(`/games/${gameId}/finalize`)
+  return response.data.data
+}
+
+export async function reopenGame(gameId: number, reason: string): Promise<ScheduledGame> {
+  const response = await api.post<ApiResponse<ScheduledGame>>(`/games/${gameId}/reopen`, { reason })
+  return response.data.data
+}
 
 export async function getDivisionGames(assignmentId: number): Promise<ScheduledGame[]> {
   const response = await api.get<ApiResponse<ScheduledGame[]>>(
@@ -198,7 +263,7 @@ export async function getDivisionGames(assignmentId: number): Promise<ScheduledG
 
 export async function scheduleGame(
   assignmentId: number,
-  payload: Omit<ScheduledGame, 'id' | 'season_sport_division_id'>,
+  payload: NewGameSchedule,
 ): Promise<ScheduledGame> {
   const response = await api.post<ApiResponse<ScheduledGame>>(
     `/season-sport-divisions/${assignmentId}/games`, payload,

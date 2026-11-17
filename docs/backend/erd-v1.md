@@ -15,8 +15,6 @@ The table definitions in [05-database-design-v1.md](05-database-design-v1.md) ar
 ## Core League Entities
 
 - Season
-- Sport
-- Division
 - SeasonSport
 - SeasonSportDivision
 
@@ -60,9 +58,7 @@ The table definitions in [05-database-design-v1.md](05-database-design-v1.md) ar
 | Parent | Child | Relationship |
 |---------|-------|-------------|
 | Season | SeasonSport | One-to-Many |
-| Sport | SeasonSport | One-to-Many |
 | SeasonSport | SeasonSportDivision | One-to-Many |
-| Division | SeasonSportDivision | One-to-Many |
 | SeasonSportDivision | SeasonTeam | One-to-Many |
 | Season | SeasonPlayerEligibility | One-to-Many |
 | Player | SeasonPlayerEligibility | One-to-Many |
@@ -103,27 +99,6 @@ Cardinality:
 
 ```text
 Season 1 ─── N SeasonSport
-```
-
----
-
-## Sport → SeasonSport
-
-One Sport may appear in many Seasons.
-
-Example:
-
-```text
-Basketball
-    ├── 2025
-    ├── 2026
-    └── 2027
-```
-
-Cardinality:
-
-```text
-Sport 1 ─── N SeasonSport
 ```
 
 ---
@@ -300,26 +275,10 @@ Each User has exactly one Role.
 
 ---
 
-## Sport
-
-```text
-(name)
-```
-
----
-
-## Division
-
-```text
-(name)
-```
-
----
-
 ## SeasonSport
 
 ```text
-(season_id, sport_id)
+(season_id, name)
 ```
 
 ---
@@ -327,7 +286,7 @@ Each User has exactly one Role.
 ## SeasonSportDivision
 
 ```text
-(season_sport_id, division_id)
+(season_sport_id, name)
 ```
 
 ---
@@ -387,9 +346,7 @@ Each User has exactly one Role.
 | Table | Foreign Key |
 |--------|-------------|
 | SeasonSport | season_id |
-| SeasonSport | sport_id |
 | SeasonSportDivision | season_sport_id |
-| SeasonSportDivision | division_id |
 | SeasonTeam | season_sport_division_id |
 | Roster | season_team_id |
 | Roster | player_id |

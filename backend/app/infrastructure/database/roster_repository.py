@@ -13,7 +13,6 @@ from app.application.rosters.types import (
     SeasonSnapshot,
     TeamSnapshot,
 )
-from app.domain.models.divisions import Division
 from app.domain.models.players import Player
 from app.domain.models.rosters import Roster
 from app.domain.models.season_player_eligibilities import SeasonPlayerEligibility
@@ -57,8 +56,7 @@ class RosterRepository(BaseRepository):
         if assignment is None:
             return None, None, None
         season_sport = db.session.get(SeasonSport, assignment.season_sport_id)
-        division = db.session.get(Division, assignment.division_id)
-        division_snapshot = DivisionSnapshot(division.maximum_roster_size) if division is not None else None
+        division_snapshot = DivisionSnapshot(assignment.maximum_roster_size)
         if season_sport is None:
             return None, division_snapshot, None
         season = db.session.get(Season, season_sport.season_id)
@@ -68,7 +66,7 @@ class RosterRepository(BaseRepository):
                 season.registration_start_date, season.registration_end_date,
             ) if season is not None else None
         )
-        return season_snapshot, division_snapshot, season_sport.sport_id
+        return season_snapshot, division_snapshot, season_sport.id
 
     def list_for_team(self, team_id: int) -> list[RosterEntryData]:
         rows = (
@@ -119,7 +117,7 @@ class RosterRepository(BaseRepository):
             .filter(
                 SeasonTeam.is_archived.is_(False),
                 SeasonSport.season_id == season_id,
-                SeasonSport.sport_id == sport_id,
+                SeasonSport.id == sport_id,
             )
         )
 

@@ -1,12 +1,13 @@
 import pytest
 
 from app import create_app
-from app.domain.models.divisions import Division
 from app.domain.models.roles import Role
+from app.domain.models.games import ScheduleLock
+from app.domain.models.statistics import StatisticType, SportStatisticConfiguration
 from app.domain.models.season_sport_divisions import SeasonSportDivision
 from app.domain.models.season_sports import SeasonSport
 from app.domain.models.seasons import Season
-from app.domain.models.sports import Sport
+from app.domain.models.season_teams import SeasonTeam
 from app.domain.models.users import User
 from app.extensions import db
 
@@ -17,173 +18,122 @@ def client():
     with app.app_context():
         db.drop_all()
         db.create_all()
-        admin_role = Role(name="Administrator", description="System administrator")
-        encoder_role = Role(name="Encoder", description="Game encoder")
-        db.session.add_all([admin_role, encoder_role])
-        db.session.flush()
-        admin = User(username="admin", role_id=admin_role.id, is_active=True)
-        admin.set_password("admin-pass-123")
-        encoder = User(username="encoder", role_id=encoder_role.id, is_active=True)
-        encoder.set_password("encoder-pass-123")
-        db.session.add_all([admin, encoder])
+        for name, role_name in (("admin", "Administrator"), ("encoder", "Encoder")):
+            role = Role(name=role_name)
+            db.session.add(role)
+            db.session.flush()
+            user = User(username=name, role_id=role.id, is_active=True)
+            user.set_password("password-123")
+            db.session.add(user)
         db.session.commit()
         yield app.test_client()
         db.session.remove()
         db.drop_all()
 
 
-def login(client, username="admin", password="admin-pass-123"):
-    return client.post("/api/v1/auth/login", json={"username": username, "password": password})
+def login(client, username="admin"):
+    return client.post("/api/v1/auth/login", json={"username": username, "password": "password-123"})
 
 
-def create_season(client):
-    response = client.post(
-        "/api/v1/seasons/",
-        json={"name": "Summer League", "year": 2026},
-    )
+def create_season(client, name):
+    response = client.post("/api/v1/seasons/", json={"name": name, "year": 2026})
     assert response.status_code == 201
     return response.get_json()["data"]["id"]
 
 
-def test_admin_can_configure_season_sports_and_divisions(client):
+def division_payload(name="Senior", minimum=5, maximum=15):
+    return {"name": name, "gender_policy": "ANY", "minimum_roster_size": minimum, "maximum_roster_size": maximum}
+
+
+def test_season_configuration_is_independent(client):
     login(client)
-    season_id = create_season(client)
-    sport_response = client.post("/api/v1/catalogs/sports", json={"name": "Basketball"})
-    division_response = client.post(
-        "/api/v1/catalogs/divisions",
-        json={
-            "name": "Senior",
-            "gender_policy": "ANY",
-            "minimum_roster_size": 5,
-            "maximum_roster_size": 15,
-        },
-    )
-    assert sport_response.status_code == 201
-    assert division_response.status_code == 201
-
-    assignment_response = client.post(
-        f"/api/v1/seasons/{season_id}/sports",
-        json={"sport_id": sport_response.get_json()["data"]["id"]},
-    )
-    season_sport_id = assignment_response.get_json()["data"]["id"]
-    division_assignment = client.post(
-        f"/api/v1/seasons/sports/{season_sport_id}/divisions",
-        json={"division_id": division_response.get_json()["data"]["id"]},
-    )
-
-    assert assignment_response.status_code == 201
-    assert division_assignment.status_code == 201
-    configuration = client.get(f"/api/v1/seasons/{season_id}/configuration")
-    body = configuration.get_json()["data"]
-    assert body["sports"][0]["sport"]["name"] == "Basketball"
-    assert body["sports"][0]["divisions"][0]["name"] == "Senior"
-    assert SeasonSport.query.count() == 1
-    assert SeasonSportDivision.query.count() == 1
+    seasons = [create_season(client, name) for name in ("Season A", "Season B")]
+    sports = []
+    divisions = []
+    for season in seasons:
+        sport = client.post(f"/api/v1/seasons/{season}/sports", json={"name": "Basketball"})
+        assert sport.status_code == 201
+        sports.append(sport.get_json()["data"]["id"])
+        division = client.post(f"/api/v1/seasons/sports/{sports[-1]}/divisions", json=division_payload())
+        assert division.status_code == 201
+        divisions.append(division.get_json()["data"]["id"])
+    assert sports[0] != sports[1] and divisions[0] != divisions[1]
+    assert client.put(f"/api/v1/seasons/{seasons[0]}/sports/{sports[0]}", json={"name": "Basketball A"}).status_code == 200
+    assert client.put(f"/api/v1/seasons/sports/{sports[0]}/divisions/{divisions[0]}", json=division_payload(maximum=12)).status_code == 200
+    first, second = [client.get(f"/api/v1/seasons/{season}/configuration").get_json()["data"] for season in seasons]
+    assert first["sports"][0]["name"] == "Basketball A"
+    assert first["sports"][0]["divisions"][0]["maximum_roster_size"] == 12
+    assert second["sports"][0]["name"] == "Basketball"
+    assert second["sports"][0]["divisions"][0]["maximum_roster_size"] == 15
+    assert client.delete(f"/api/v1/seasons/{seasons[0]}/sports/{sports[0]}").status_code == 200
+    assert client.get(f"/api/v1/seasons/{seasons[1]}/configuration").get_json()["data"]["sports"][0]["id"] == sports[1]
 
 
-def test_non_admin_cannot_create_catalog_or_configure_season(client):
-    login(client, "encoder", "encoder-pass-123")
-    assert client.post("/api/v1/catalogs/sports", json={"name": "Basketball"}).status_code == 403
-
-
-def test_duplicate_sport_assignment_returns_conflict(client):
+def test_season_configuration_scopes_names_and_ownership(client):
     login(client)
-    season_id = create_season(client)
-    sport = Sport(name="Basketball")
-    db.session.add(sport)
+    season_a, season_b = [create_season(client, name) for name in ("A", "B")]
+    sport = client.post(f"/api/v1/seasons/{season_a}/sports", json={"name": " Basketball "}).get_json()["data"]
+    assert client.post(f"/api/v1/seasons/{season_a}/sports", json={"name": "basketball"}).status_code == 409
+    division = client.post(f"/api/v1/seasons/sports/{sport['id']}/divisions", json=division_payload()).get_json()["data"]
+    assert client.post(f"/api/v1/seasons/sports/{sport['id']}/divisions", json=division_payload("senior")).status_code == 409
+    assert client.put(f"/api/v1/seasons/{season_b}/sports/{sport['id']}", json={"name": "Wrong"}).status_code == 404
+    other = client.post(f"/api/v1/seasons/{season_b}/sports", json={"name": "Basketball"}).get_json()["data"]
+    assert client.put(f"/api/v1/seasons/sports/{other['id']}/divisions/{division['id']}", json=division_payload()).status_code == 404
+    assert client.delete(f"/api/v1/seasons/sports/{other['id']}/divisions/{division['id']}").status_code == 404
+
+
+def test_season_configuration_requires_admin_and_configurable_status(client):
+    login(client)
+    season = create_season(client, "Season")
+    sport = client.post(f"/api/v1/seasons/{season}/sports", json={"name": "Basketball"}).get_json()["data"]
+    division = client.post(f"/api/v1/seasons/sports/{sport['id']}/divisions", json=division_payload()).get_json()["data"]
+    db.session.get(Season, season).season_status = "ONGOING"
     db.session.commit()
-    payload = {"sport_id": sport.id}
-    client.post(f"/api/v1/seasons/{season_id}/sports", json=payload)
+    assert client.post(f"/api/v1/seasons/{season}/sports", json={"name": "Volleyball"}).status_code == 400
+    assert client.put(f"/api/v1/seasons/{season}/sports/{sport['id']}", json={"name": "Volleyball"}).status_code == 400
+    assert client.delete(f"/api/v1/seasons/{season}/sports/{sport['id']}").status_code == 400
+    assert client.post(f"/api/v1/seasons/sports/{sport['id']}/divisions", json=division_payload("Junior")).status_code == 400
+    assert client.put(f"/api/v1/seasons/sports/{sport['id']}/divisions/{division['id']}", json=division_payload()).status_code == 400
+    assert client.delete(f"/api/v1/seasons/sports/{sport['id']}/divisions/{division['id']}").status_code == 400
+    client.post("/api/v1/auth/logout")
+    assert client.post(f"/api/v1/seasons/{season}/sports", json={"name": "Tennis"}).status_code == 401
+    login(client, "encoder")
+    assert client.post(f"/api/v1/seasons/{season}/sports", json={"name": "Tennis"}).status_code == 403
+    assert client.get(f"/api/v1/seasons/{season}/configuration").status_code == 200
 
-    response = client.post(f"/api/v1/seasons/{season_id}/sports", json=payload)
 
-    assert response.status_code == 409
-    assert SeasonSport.query.count() == 1
-
-
-def test_cannot_configure_season_after_it_is_ongoing(client):
+def test_invalid_division_and_unassigned_removal(client):
     login(client)
-    season_id = create_season(client)
-    season = db.session.get(Season, season_id)
-    season.season_status = "ONGOING"
+    season = create_season(client, "Season")
+    sport = client.post(f"/api/v1/seasons/{season}/sports", json={"name": "Basketball"}).get_json()["data"]
+    assert client.post(f"/api/v1/seasons/sports/{sport['id']}/divisions", json=division_payload(maximum=4)).status_code == 400
+    division = client.post(f"/api/v1/seasons/sports/{sport['id']}/divisions", json=division_payload()).get_json()["data"]
+    assert client.delete(f"/api/v1/seasons/sports/{sport['id']}/divisions/{division['id']}").status_code == 200
+    assert client.delete(f"/api/v1/seasons/{season}/sports/{sport['id']}").status_code == 200
+    assert SeasonSport.query.count() == 0 and SeasonSportDivision.query.count() == 0
+
+
+def test_removing_unassigned_sport_removes_its_statistic_configuration(client):
+    login(client)
+    db.session.add(ScheduleLock(id=1))
     db.session.commit()
-    sport = Sport(name="Volleyball")
-    db.session.add(sport)
+    season = create_season(client, "Season")
+    sport_id = client.post(f"/api/v1/seasons/{season}/sports", json={"name": "Basketball"}).get_json()["data"]["id"]
+    response = client.put(f"/api/v1/season-sports/{sport_id}/statistics-configuration", json={
+        "allow_team_points": False,
+        "types": [{"name": "Points", "abbreviation": "PTS", "required": True, "is_scoring": True}],
+    })
+    assert response.status_code == 200
+    assert client.delete(f"/api/v1/seasons/{season}/sports/{sport_id}").status_code == 200
+    assert StatisticType.query.count() == 0 and SportStatisticConfiguration.query.count() == 0
+
+
+def test_sport_and_division_with_teams_cannot_be_removed(client):
+    login(client)
+    season = create_season(client, "Season")
+    sport = client.post(f"/api/v1/seasons/{season}/sports", json={"name": "Basketball"}).get_json()["data"]
+    division = client.post(f"/api/v1/seasons/sports/{sport['id']}/divisions", json=division_payload()).get_json()["data"]
+    db.session.add(SeasonTeam(season_sport_division_id=division["id"], name="Team", barangay="Demo"))
     db.session.commit()
-
-    response = client.post(
-        f"/api/v1/seasons/{season_id}/sports",
-        json={"sport_id": sport.id},
-    )
-
-    assert response.status_code == 400
-
-
-def test_admin_can_update_sport_and_division_catalog(client):
-    login(client)
-    sport = client.post("/api/v1/catalogs/sports", json={"name": "Basketball"}).get_json()["data"]
-    division = client.post(
-        "/api/v1/catalogs/divisions",
-        json={"name": "Senior", "minimum_roster_size": 5, "maximum_roster_size": 15},
-    ).get_json()["data"]
-
-    updated_sport = client.put(
-        f"/api/v1/catalogs/sports/{sport['id']}",
-        json={"name": "Indoor Basketball", "description": "Court sport"},
-    )
-    updated_division = client.put(
-        f"/api/v1/catalogs/divisions/{division['id']}",
-        json={
-            "name": "Open Division",
-            "gender_policy": "MIXED",
-            "minimum_roster_size": 6,
-            "maximum_roster_size": 12,
-        },
-    )
-
-    assert updated_sport.status_code == 200
-    assert updated_sport.get_json()["data"]["name"] == "Indoor Basketball"
-    assert updated_division.status_code == 200
-    assert updated_division.get_json()["data"]["gender_policy"] == "MIXED"
-
-
-def test_catalog_delete_is_rejected_when_item_is_assigned(client):
-    login(client)
-    season_id = create_season(client)
-    sport = client.post("/api/v1/catalogs/sports", json={"name": "Basketball"}).get_json()["data"]
-    client.post(f"/api/v1/seasons/{season_id}/sports", json={"sport_id": sport["id"]})
-
-    response = client.delete(f"/api/v1/catalogs/sports/{sport['id']}")
-
-    assert response.status_code == 409
-    assert Sport.query.filter_by(id=sport["id"]).one().name == "Basketball"
-
-
-def test_admin_can_remove_season_assignments_without_deleting_catalogs(client):
-    login(client)
-    season_id = create_season(client)
-    sport = client.post("/api/v1/catalogs/sports", json={"name": "Basketball"}).get_json()["data"]
-    division = client.post(
-        "/api/v1/catalogs/divisions",
-        json={"name": "Senior", "minimum_roster_size": 5, "maximum_roster_size": 15},
-    ).get_json()["data"]
-    season_sport = client.post(
-        f"/api/v1/seasons/{season_id}/sports",
-        json={"sport_id": sport["id"]},
-    ).get_json()["data"]
-    division_assignment = client.post(
-        f"/api/v1/seasons/sports/{season_sport['id']}/divisions",
-        json={"division_id": division["id"]},
-    ).get_json()["data"]
-
-    remove_division = client.delete(
-        f"/api/v1/seasons/sports/{season_sport['id']}/divisions/{division_assignment['id']}"
-    )
-    remove_sport = client.delete(f"/api/v1/seasons/{season_id}/sports/{season_sport['id']}")
-
-    assert remove_division.status_code == 200
-    assert remove_sport.status_code == 200
-    assert Sport.query.filter_by(id=sport["id"]).one() is not None
-    assert Division.query.filter_by(id=division["id"]).one() is not None
-    assert SeasonSport.query.count() == 0
-    assert SeasonSportDivision.query.count() == 0
+    assert client.delete(f"/api/v1/seasons/sports/{sport['id']}/divisions/{division['id']}").status_code == 409
+    assert client.delete(f"/api/v1/seasons/{season}/sports/{sport['id']}").status_code == 409

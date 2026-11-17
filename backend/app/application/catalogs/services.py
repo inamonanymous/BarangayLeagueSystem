@@ -2,10 +2,8 @@ from sqlalchemy.exc import IntegrityError
 
 from app.application.catalogs.policies import CatalogPolicy
 from app.application.common.utils.base_classes import BaseService
-from app.domain.models.divisions import Division
 from app.domain.models.season_sport_divisions import SeasonSportDivision
 from app.domain.models.season_sports import SeasonSport
-from app.domain.models.sports import Sport
 from app.extensions import db
 from app.infrastructure.database.catalog_repository import CatalogRepository
 
@@ -15,238 +13,123 @@ class CatalogConflictError(ValueError):
 
 
 class CatalogService(BaseService):
-    def __init__(
-        self,
-        repository: CatalogRepository | None = None,
-        policy: CatalogPolicy | None = None,
-    ) -> None:
+    def __init__(self, repository: CatalogRepository | None = None, policy: CatalogPolicy | None = None) -> None:
         self.repository = repository or CatalogRepository()
         self.policy = policy or CatalogPolicy()
-
-    def list_sports(self) -> list[Sport]:
-        return self.repository.list_sports()
-
-    def list_divisions(self) -> list[Division]:
-        return self.repository.list_divisions()
-
-    def create_sport(self, name: str, description: str | None = None) -> Sport:
-        normalized_name = self.policy.normalize_name(name, "Sport")
-        normalized_description = self.policy.normalize_description(description)
-        if any(sport.name.casefold() == normalized_name.casefold() for sport in self.repository.list_sports()):
-            raise CatalogConflictError("A sport with that name already exists.")
-
-        sport = Sport(name=normalized_name, description=normalized_description)
-        self.repository.add(sport)
-        self._commit("A sport with that name already exists.")
-        return sport
-
-    def update_sport(self, sport_id: int, name: str, description: str | None = None) -> Sport:
-        sport = self.repository.get_sport(sport_id)
-        if sport is None:
-            raise LookupError("Sport not found.")
-        normalized_name = self.policy.normalize_name(name, "Sport")
-        normalized_description = self.policy.normalize_description(description)
-        if any(
-            existing.id != sport_id and existing.name.casefold() == normalized_name.casefold()
-            for existing in self.repository.list_sports()
-        ):
-            raise CatalogConflictError("A sport with that name already exists.")
-        sport.name = normalized_name
-        sport.description = normalized_description
-        self._commit("A sport with that name already exists.")
-        return sport
-
-    def delete_sport(self, sport_id: int) -> None:
-        sport = self.repository.get_sport(sport_id)
-        if sport is None:
-            raise LookupError("Sport not found.")
-        if self.repository.sport_is_assigned(sport_id):
-            raise CatalogConflictError("This sport is assigned to a season and cannot be deleted.")
-        self.repository.delete(sport)
-        self._commit("Sport is still referenced and cannot be deleted.")
-
-    def create_division(
-        self,
-        name: str,
-        minimum_roster_size: int,
-        maximum_roster_size: int,
-        gender_policy: str = "ANY",
-    ) -> Division:
-        normalized_name = self.policy.normalize_name(name, "Division")
-        normalized_policy = self.policy.validate_division(
-            gender_policy,
-            minimum_roster_size,
-            maximum_roster_size,
-        )
-        if any(division.name.casefold() == normalized_name.casefold() for division in self.repository.list_divisions()):
-            raise CatalogConflictError("A division with that name already exists.")
-
-        division = Division(
-            name=normalized_name,
-            gender_policy=normalized_policy,
-            minimum_roster_size=minimum_roster_size,
-            maximum_roster_size=maximum_roster_size,
-        )
-        self.repository.add(division)
-        self._commit("A division with that name already exists.")
-        return division
-
-    def update_division(
-        self,
-        division_id: int,
-        name: str,
-        minimum_roster_size: int,
-        maximum_roster_size: int,
-        gender_policy: str = "ANY",
-    ) -> Division:
-        division = self.repository.get_division(division_id)
-        if division is None:
-            raise LookupError("Division not found.")
-        normalized_name = self.policy.normalize_name(name, "Division")
-        normalized_policy = self.policy.validate_division(
-            gender_policy,
-            minimum_roster_size,
-            maximum_roster_size,
-        )
-        if any(
-            existing.id != division_id and existing.name.casefold() == normalized_name.casefold()
-            for existing in self.repository.list_divisions()
-        ):
-            raise CatalogConflictError("A division with that name already exists.")
-        division.name = normalized_name
-        division.gender_policy = normalized_policy
-        division.minimum_roster_size = minimum_roster_size
-        division.maximum_roster_size = maximum_roster_size
-        self._commit("A division with that name already exists.")
-        return division
-
-    def delete_division(self, division_id: int) -> None:
-        division = self.repository.get_division(division_id)
-        if division is None:
-            raise LookupError("Division not found.")
-        if self.repository.division_is_assigned(division_id):
-            raise CatalogConflictError("This division is assigned to a season and cannot be deleted.")
-        self.repository.delete(division)
-        self._commit("Division is still referenced and cannot be deleted.")
 
     def get_season_configuration(self, season_id: int) -> dict:
         season = self.repository.get_season(season_id)
         if season is None:
             raise LookupError("Season not found.")
+        return {
+            "season": season.to_dict(),
+            "sports": [
+                {**sport.to_dict(), "divisions": [
+                    division.to_dict() for division in self.repository.season_sport_divisions(sport.id)
+                ]}
+                for sport in self.repository.season_sports(season_id)
+            ],
+        }
 
-        configured_sports = []
-        for season_sport in self.repository.season_sports(season_id):
-            sport = self.repository.get_sport(season_sport.sport_id)
-            configured_divisions = []
-            for association in self.repository.season_sport_divisions(season_sport.id):
-                division = self.repository.get_division(association.division_id)
-                if division is not None:
-                    configured_divisions.append({
-                        "assignment_id": association.id,
-                        **division.to_dict(),
-                    })
-            if sport is not None:
-                configured_sports.append({
-                    **season_sport.to_dict(),
-                    "sport": sport.to_dict(),
-                    "divisions": configured_divisions,
-                })
+    def create_sport(self, season_id: int, *, name: str, description: str | None = None) -> SeasonSport:
+        self._validate_season(season_id)
+        name = self.policy.normalize_name(name, "Sport")
+        description = self.policy.normalize_description(description)
+        if self.repository.sport_name_exists(season_id, name):
+            raise CatalogConflictError("A sport with that name already exists in this season.")
+        sport = SeasonSport(season_id=season_id, name=name, description=description)
+        self.repository.add(sport)
+        self._commit("Sport could not be saved because of a database constraint.")
+        return sport
 
-        return {"season": season.to_dict(), "sports": configured_sports}
+    def update_sport(self, season_id: int, sport_id: int, *, name: str, description: str | None = None) -> SeasonSport:
+        self._validate_season(season_id)
+        sport = self._get_sport(season_id, sport_id)
+        name = self.policy.normalize_name(name, "Sport")
+        description = self.policy.normalize_description(description)
+        if self.repository.sport_name_exists(season_id, name, exclude_id=sport_id):
+            raise CatalogConflictError("A sport with that name already exists in this season.")
+        sport.name, sport.description = name, description
+        self._commit("Sport could not be saved because of a database constraint.")
+        return sport
 
-    def add_sport_to_season(self, season_id: int, sport_id: int) -> SeasonSport:
-        season = self.repository.get_season(season_id)
-        if season is None:
-            raise LookupError("Season not found.")
-        self.policy.validate_season_configurable(season.season_status)
-
-        sport = self.repository.get_sport(sport_id)
-        if sport is None:
-            raise LookupError("Sport not found.")
-        if self.repository.find_season_sport(season_id, sport_id) is not None:
-            raise CatalogConflictError("This sport is already assigned to the season.")
-
-        association = SeasonSport(season_id=season_id, sport_id=sport_id)
-        self.repository.add(association)
-        self._commit("This sport is already assigned to the season.")
-        return association
-
-    def add_division_to_season_sport(
-        self,
-        season_sport_id: int,
-        division_id: int,
+    def create_division(
+        self, sport_id: int, *, name: str, minimum_roster_size: int,
+        maximum_roster_size: int, gender_policy: str = "ANY",
     ) -> SeasonSportDivision:
-        season_sport = self.repository.get_season_sport(season_sport_id)
-        if season_sport is None:
-            raise LookupError("Season sport assignment not found.")
-
-        season = self.repository.get_season(season_sport.season_id)
-        if season is None:
-            raise LookupError("Season not found.")
-        self.policy.validate_season_configurable(season.season_status)
-
-        division = self.repository.get_division(division_id)
-        if division is None:
-            raise LookupError("Division not found.")
-        if self.repository.division_for_season_sport(season_sport_id, division_id) is not None:
-            raise CatalogConflictError("This division is already assigned to the sport in this season.")
-
-        association = SeasonSportDivision(
-            season_sport_id=season_sport_id,
-            division_id=division_id,
+        sport = self._get_configurable_sport(sport_id)
+        name, gender_policy = self._normalize_division(name, gender_policy, minimum_roster_size, maximum_roster_size)
+        if self.repository.division_name_exists(sport.id, name):
+            raise CatalogConflictError("A division with that name already exists in this sport.")
+        division = SeasonSportDivision(
+            season_sport_id=sport.id, name=name, gender_policy=gender_policy,
+            minimum_roster_size=minimum_roster_size, maximum_roster_size=maximum_roster_size,
         )
-        self.repository.add(association)
-        self._commit("This division is already assigned to the sport in this season.")
-        return association
+        self.repository.add(division)
+        self._commit("Division could not be saved because of a database constraint.")
+        return division
 
-    def remove_sport_from_season(self, season_id: int, season_sport_id: int) -> None:
+    def update_division(
+        self, sport_id: int, division_id: int, *, name: str, minimum_roster_size: int,
+        maximum_roster_size: int, gender_policy: str = "ANY",
+    ) -> SeasonSportDivision:
+        sport = self._get_configurable_sport(sport_id)
+        division = self.repository.get_division(division_id)
+        if division is None or division.season_sport_id != sport.id:
+            raise LookupError("Division not found for this season sport.")
+        name, gender_policy = self._normalize_division(name, gender_policy, minimum_roster_size, maximum_roster_size)
+        if self.repository.division_name_exists(sport.id, name, exclude_id=division_id):
+            raise CatalogConflictError("A division with that name already exists in this sport.")
+        division.name = name
+        division.gender_policy = gender_policy
+        division.minimum_roster_size = minimum_roster_size
+        division.maximum_roster_size = maximum_roster_size
+        self._commit("Division could not be saved because of a database constraint.")
+        return division
+
+    def remove_sport_from_season(self, season_id: int, sport_id: int) -> None:
+        self._validate_season(season_id)
+        sport = self._get_sport(season_id, sport_id)
+        divisions = self.repository.season_sport_divisions(sport.id)
+        if any(self.repository.division_assignment_has_teams(division.id) for division in divisions):
+            raise CatalogConflictError("This sport has registered teams and cannot be removed from the season.")
+        for division in divisions:
+            self.repository.delete(division)
+        self.repository.remove_sport_statistics(sport.id)
+        self.repository.delete(sport)
+        self._commit("Sport could not be removed.")
+
+    def remove_division_from_season_sport(self, sport_id: int, division_id: int) -> None:
+        self._get_configurable_sport(sport_id)
+        division = self.repository.get_division(division_id)
+        if division is None or division.season_sport_id != sport_id:
+            raise LookupError("Division not found for this season sport.")
+        if self.repository.division_assignment_has_teams(division.id):
+            raise CatalogConflictError("This division has registered teams and cannot be removed from the season.")
+        self.repository.delete(division)
+        self._commit("Division could not be removed.")
+
+    def _validate_season(self, season_id: int) -> None:
         season = self.repository.get_season(season_id)
         if season is None:
             raise LookupError("Season not found.")
         self.policy.validate_season_configurable(season.season_status)
-        association = self.repository.get_season_sport(season_sport_id)
-        if association is None or association.season_id != season_id:
-            raise LookupError("Sport assignment not found for this season.")
-        division_assignments = self.repository.season_sport_divisions(season_sport_id)
-        if any(
-            self.repository.division_assignment_has_teams(assignment.id)
-            for assignment in division_assignments
-        ):
-            raise CatalogConflictError(
-                "This sport has registered teams and cannot be removed from the season."
-            )
-        for division_assignment in division_assignments:
-            self.repository.delete(division_assignment)
-        self.repository.delete(association)
-        self._commit("Sport assignment could not be removed.")
 
-    def remove_division_from_season_sport(
-        self,
-        season_sport_id: int,
-        division_assignment_id: int,
-    ) -> None:
-        season_sport = self.repository.get_season_sport(season_sport_id)
-        if season_sport is None:
-            raise LookupError("Season sport assignment not found.")
-        season = self.repository.get_season(season_sport.season_id)
-        if season is None:
-            raise LookupError("Season not found.")
-        self.policy.validate_season_configurable(season.season_status)
-        assignment = next(
-            (
-                row for row in self.repository.season_sport_divisions(season_sport_id)
-                if row.id == division_assignment_id
-            ),
-            None,
-        )
-        if assignment is None:
-            raise LookupError("Division assignment not found for this season sport.")
-        if self.repository.division_assignment_has_teams(assignment.id):
-            raise CatalogConflictError(
-                "This division has registered teams and cannot be removed from the season."
-            )
-        self.repository.delete(assignment)
-        self._commit("Division assignment could not be removed.")
+    def _get_sport(self, season_id: int, sport_id: int) -> SeasonSport:
+        sport = self.repository.get_season_sport(sport_id)
+        if sport is None or sport.season_id != season_id:
+            raise LookupError("Sport not found for this season.")
+        return sport
+
+    def _get_configurable_sport(self, sport_id: int) -> SeasonSport:
+        sport = self.repository.get_season_sport(sport_id)
+        if sport is None:
+            raise LookupError("Season sport not found.")
+        self._validate_season(sport.season_id)
+        return sport
+
+    def _normalize_division(self, name: str, gender_policy: str, minimum: int, maximum: int) -> tuple[str, str]:
+        return self.policy.normalize_name(name, "Division"), self.policy.validate_division(gender_policy, minimum, maximum)
 
     @staticmethod
     def _commit(conflict_message: str) -> None:

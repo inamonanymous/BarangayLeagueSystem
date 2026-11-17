@@ -4,12 +4,10 @@ from app import create_app
 from app.application.catalogs.services import CatalogService
 from app.application.season.services import SeasonService
 from app.application.teams.services import SeasonTeamService
-from app.domain.models.divisions import Division
 from app.domain.models.season_sport_divisions import SeasonSportDivision
 from app.domain.models.season_sports import SeasonSport
 from app.domain.models.seasons import Season
 from app.domain.models.season_teams import SeasonTeam
-from app.domain.models.sports import Sport
 
 
 DEMO_TEAMS = [
@@ -87,24 +85,23 @@ DEMO_SEASONS = [
 def ensure_division_assignment(
     catalog_service: CatalogService,
     season: Season,
-    sport: Sport,
-    division: Division,
+    sport_name: str,
+    division_name: str,
 ) -> SeasonSportDivision:
     season_sport = SeasonSport.query.filter_by(
         season_id=season.id,
-        sport_id=sport.id,
+        name=sport_name,
     ).first()
     if season_sport is None:
-        season_sport = catalog_service.add_sport_to_season(season.id, sport.id)
+        season_sport = catalog_service.create_sport(season.id, name=sport_name)
 
     division_assignment = SeasonSportDivision.query.filter_by(
         season_sport_id=season_sport.id,
-        division_id=division.id,
+        name=division_name,
     ).first()
     if division_assignment is None:
-        division_assignment = catalog_service.add_division_to_season_sport(
-            season_sport.id,
-            division.id,
+        division_assignment = catalog_service.create_division(
+            season_sport.id, name=division_name, minimum_roster_size=5, maximum_roster_size=15,
         )
     return division_assignment
 
@@ -130,22 +127,10 @@ def main() -> None:
             name="DEMO - Planning Season 2028"
         ).one()
 
-        basketball = Sport.query.filter_by(name="Basketball").first()
-        if basketball is None:
-            basketball = catalog_service.create_sport("Basketball")
-
-        senior = Division.query.filter_by(name="Senior").first()
-        if senior is None:
-            senior = catalog_service.create_division(
-                name="Senior",
-                minimum_roster_size=5,
-                maximum_roster_size=15,
-            )
-
-        ensure_division_assignment(catalog_service, planning_season, basketball, senior)
+        ensure_division_assignment(catalog_service, planning_season, "Basketball", "Senior")
         print(
             f"CONFIGURED: {planning_season.name} -> "
-            f"{basketball.name} -> {senior.name}"
+            "Basketball -> Senior"
         )
 
         registration_season = Season.query.filter_by(
@@ -154,8 +139,8 @@ def main() -> None:
         registration_assignment = ensure_division_assignment(
             catalog_service,
             registration_season,
-            basketball,
-            senior,
+            "Basketball",
+            "Senior",
         )
         team_service = SeasonTeamService()
         for team_data in DEMO_TEAMS:

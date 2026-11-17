@@ -15,19 +15,3 @@ class CreateDivisionSchema(BaseSchema):
     )
     minimum_roster_size = fields.Integer(required=True, validate=validate.Range(min=1))
     maximum_roster_size = fields.Integer(required=True, validate=validate.Range(min=1))
-
-
-class UpdateSportSchema(CreateSportSchema):
-    pass
-
-
-class UpdateDivisionSchema(CreateDivisionSchema):
-    pass
-
-
-class AddSportToSeasonSchema(BaseSchema):
-    sport_id = fields.Integer(required=True, validate=validate.Range(min=1))
-
-
-class AddDivisionToSeasonSportSchema(BaseSchema):
-    division_id = fields.Integer(required=True, validate=validate.Range(min=1))

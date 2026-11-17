@@ -26,7 +26,7 @@ in more detail.
 | [04 Create a user](flowcharts/04-create-user.puml) | [Create a user](#create-a-user) |
 | [05 Season lifecycle](flowcharts/05-season-lifecycle.puml) | [Creation and status transitions](#creation-and-status-transitions) |
 | [06 Ongoing readiness](flowcharts/06-ongoing-readiness.puml) | [Before moving to Ongoing](#before-moving-to-ongoing) |
-| [07 Catalogs](flowcharts/07-catalogs.puml) | [Sport and division catalogs](#5-sport-and-division-catalogs) |
+| [07 Configuration](flowcharts/07-catalogs.puml) | [Sport and division configuration](#5-sport-and-division-configuration) |
 | [08 Season assignments](flowcharts/08-season-assignments.puml) | [Assign sports and divisions](#6-assign-sports-and-divisions-to-a-season) |
 | [09 Team registration](flowcharts/09-team-registration.puml) | [Register and edit](#register-and-edit) |
 | [10 Team archive and restore](flowcharts/10-team-archive-restore.puml) | [Archive and restore](#archive-and-restore) |
@@ -117,8 +117,8 @@ flowchart TD
 ```
 
 Administrator, Encoder, and Viewer are supported roles. The currently
-implemented management mutations use administrator checks; game results and
-statistics entry are **not implemented**. Public roster listings include player
+implemented management mutations generally use administrator checks; game results and
+statistics entry are also available to Encoders. Public roster listings include player
 data, while the player-profile management endpoints require an Administrator.
 
 ### Create a user
@@ -176,44 +176,41 @@ flowchart TD
 Archived teams and archived player profiles are excluded from this readiness
 count. There is currently no explicit minimum-team requirement.
 
-## 5. Sport and division catalogs
+## 5. Sport and division configuration
 
 ```mermaid
 flowchart TD
-    A["Administrator creates or edits a catalog item"] --> B{"Sport or division?"}
+    A["Administrator creates or edits seasonal configuration"] --> B{"Sport or division?"}
     B -->|"Sport"| C["Validate name and optional description"]
     B -->|"Division"| D["Validate name, gender policy, and roster limits"]
     C --> E{"Duplicate name?"}
     D --> E
     E -->|"Yes"| F["Reject"]
-    E -->|"No"| G["Save shared catalog record"]
-    H["Administrator deletes catalog item"] --> I{"Item assigned to a season?"}
-    I -->|"Yes"| J["Reject deletion"]
-    I -->|"No"| K["Delete unused catalog record"]
+    E -->|"No"| G["Save season-owned record"]
 ```
 
-Catalog records are shared. Editing a catalog item can change what existing
-season configurations display. Division gender policy is stored, but gender
+Sport names are scoped to a season, and division names to a season sport.
+Division gender policy is stored, but gender
 eligibility is not yet enforced when adding players.
 
-## 6. Assign sports and divisions to a season
+## 6. Create and remove season sports and divisions
 
 ```mermaid
 flowchart TD
     A["Administrator chooses a season"] --> B{"Season is Planning or Registration?"}
-    B -->|"No"| X["Reject assignment change"]
-    B -->|"Yes"| C["Assign an existing sport to the season"]
-    C --> D{"Sport already assigned?"}
+    B -->|"No"| X["Reject configuration change"]
+    B -->|"Yes"| C["Create a sport in the season"]
+    C --> D{"Sport name already used in season?"}
     D -->|"Yes"| X
-    D -->|"No"| E["Save SeasonSport link"]
-    E --> F["Assign an existing division to that sport"]
-    F --> G{"Division already assigned to this sport?"}
+    D -->|"No"| E["Save SeasonSport"]
+    E --> F["Create a division for that sport"]
+    F --> G{"Division name already used in this sport?"}
     G -->|"Yes"| X
-    G -->|"No"| H["Save SeasonSportDivision link"]
+    G -->|"No"| H["Save SeasonSportDivision"]
     H --> I["Register teams against this division assignment"]
-    J["Remove a sport or division assignment"] --> K{"Assignment has registered teams?"}
+    J["Remove a sport or division"] --> K{"Division has registered teams?"}
     K -->|"Yes"| X
-    K -->|"No"| L["Remove assignment link, not the catalog record"]
+    K -->|"No"| L["Remove seasonal configuration"]
 ```
 
 The removal check includes teams associated with the assignment; it is not
@@ -408,7 +405,7 @@ revalidate their current archive status.
 
 ```mermaid
 flowchart TD
-    A["Open season configuration"] --> B["Load season configuration and catalogs"]
+    A["Open season configuration"] --> B["Load season configuration"]
     B --> C["Select sport and division tabs"]
     C --> D["Enable teams and game queries for selected division"]
     D --> E["Select team tab"]
@@ -436,9 +433,7 @@ This is a learning map, not a complete entity-relationship diagram.
 ```mermaid
 flowchart TD
     S["Season"] --> SS["SeasonSport"]
-    SP["Sport catalog"] --> SS
     SS --> SD["SeasonSportDivision"]
-    DI["Division catalog"] --> SD
     SD --> T["SeasonTeam"]
     T --> R["Roster"]
     P["Player profile"] --> R
@@ -462,7 +457,7 @@ All paths below are links to the current source, not proposed files.
 | Authentication | [Auth routes](../../backend/app/api/v1/auth/routes.py) | [Auth service](../../backend/app/application/auth/services.py), [auth policy](../../backend/app/application/auth/policies.py), [authorization decorator](../../backend/app/application/common/decorators/authorization.py) | [User repository](../../backend/app/infrastructure/database/user_repository.py) |
 | User creation | [User routes](../../backend/app/api/v1/users/routes.py) | [User service](../../backend/app/application/users/services.py) | [User model](../../backend/app/domain/models/users.py) |
 | Seasons | [Season routes](../../backend/app/api/v1/seasons/routes.py) | [Season service](../../backend/app/application/season/services.py), [season policy](../../backend/app/application/season/policies.py) | [Season repository](../../backend/app/infrastructure/database/season_repository.py) |
-| Catalogs and assignments | [Catalog routes](../../backend/app/api/v1/catalogs/routes.py), [season routes](../../backend/app/api/v1/seasons/routes.py) | [Catalog service](../../backend/app/application/catalogs/services.py), [catalog policy](../../backend/app/application/catalogs/policies.py) | [Catalog repository](../../backend/app/infrastructure/database/catalog_repository.py) |
+| Season configuration | [Season routes](../../backend/app/api/v1/seasons/routes.py) | [Catalog service](../../backend/app/application/catalogs/services.py), [catalog policy](../../backend/app/application/catalogs/policies.py) | [Catalog repository](../../backend/app/infrastructure/database/catalog_repository.py) |
 | Teams | [Team routes](../../backend/app/api/v1/teams/routes.py) | [Team service](../../backend/app/application/teams/services.py), [team policy](../../backend/app/application/teams/policies.py) | [Team repository](../../backend/app/infrastructure/database/season_team_repository.py) |
 | Players | [Player routes](../../backend/app/api/v1/players/routes.py) | [Player service](../../backend/app/application/players/services.py), [player policy](../../backend/app/application/players/policies.py) | [Player repository](../../backend/app/infrastructure/database/player_repository.py) |
 | Rosters | [Team and roster routes](../../backend/app/api/v1/teams/routes.py) | [Roster service](../../backend/app/application/rosters/services.py), [roster policy](../../backend/app/application/rosters/policies.py), [team policy](../../backend/app/application/teams/policies.py) | [Roster repository](../../backend/app/infrastructure/database/roster_repository.py), [roster tests](../../backend/tests/test_players_rosters_api.py) |
@@ -490,9 +485,9 @@ These are **not implemented flows**. Their rules still need decisions and tests:
 ```mermaid
 flowchart LR
     A["Current: schedule and reschedule games"] -.-> B["Planned: cancellation rules"]
-    A -.-> C["Planned: record and finalize results"]
-    C -.-> D["Planned: standings"]
-    D -.-> E["Planned: statistics and playoffs"]
+    A --> C["Current: record results and player statistics"]
+    C --> D["Current: finalization and standings"]
+    D -.-> E["Planned: aggregate statistics and playoffs"]
     A -.-> F["Decide managed venues and rounds"]
 ```
 

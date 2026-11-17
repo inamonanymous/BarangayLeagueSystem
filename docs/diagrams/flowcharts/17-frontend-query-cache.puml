@@ -3,7 +3,7 @@ title Frontend selection and query cache
 skinparam shadowing false
 start
 :Open season configuration;
-:Load season configuration and catalogs;
+:Load season configuration;
 :Select sport and division tabs;
 :Enable team and game queries for selected division;
 :Select team tab;

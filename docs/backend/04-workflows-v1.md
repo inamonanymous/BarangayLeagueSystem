@@ -1,7 +1,7 @@
 # Workflows and Use Cases
 
 > **Version 1 target workflows:** Some steps below are planned rather than
-> implemented, particularly results, finalization, and standings. For actual
+> implemented, particularly aggregate statistics and playoffs. For actual
 > behavior and code entry points, use the [current feature flowcharts](../diagrams/system-feature-flowcharts.md)
 > and [implementation tracker](implementation-alignment.md).
 
@@ -36,7 +36,7 @@ Allows an administrator to create a new league season.
 2. Administrator selects "Create Season".
 3. Administrator enters season information.
 4. System validates the input and creates the season with an initial status of `PLANNING`.
-5. Administrator can then assign existing sports and divisions to the season.
+5. Administrator can then create sports for the season and divisions for each sport.
 
 ## Postconditions
 
@@ -171,6 +171,10 @@ before-start check uses the server's local clock.
 
 # 6. Record Game Results
 
+Current implementation accepts scores from an Administrator or Encoder after
+the scheduled end while the season is Ongoing. An Administrator configures
+statistics per season sport before the first game statistics are saved.
+
 ## Actor
 
 Encoder
@@ -213,6 +217,10 @@ Allows an administrator to officially finalize a game.
 
 * Game results have been encoded.
 * Game is not yet finalized.
+* Every rostered player is marked Played or DNP, each team has a Played player,
+  and required statistics are entered for players who played.
+* Where score matching is configured, player scoring values and any enabled
+  team points equal each team's official score.
 
 ## Main Flow
 
@@ -220,7 +228,7 @@ Allows an administrator to officially finalize a game.
 2. Administrator selects "Finalize Game".
 3. System validates game completeness.
 4. System marks the game as `FINALIZED`.
-5. System updates standings and statistics.
+5. System calculates standings from finalized results.
 
 ## Postconditions
 
@@ -231,6 +239,9 @@ Allows an administrator to officially finalize a game.
 ---
 
 # 8. Reopen Finalized Game
+
+Current implementation records each reopening reason, actor, previous scores,
+finalizer and timestamps in dedicated history; general audit logging is planned.
 
 ## Actor
 

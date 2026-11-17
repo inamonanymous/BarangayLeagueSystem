@@ -1,7 +1,6 @@
 from sqlalchemy import and_, func
 
 from app.application.common.utils.base_classes import BaseRepository
-from app.domain.models.divisions import Division
 from app.domain.models.players import Player
 from app.domain.models.rosters import Roster
 from app.domain.models.seasons import Season
@@ -34,16 +33,15 @@ class SeasonRepository(BaseRepository):
         rows = (
             db.session.query(
                 SeasonTeam.name.label("team_name"),
-                Division.name.label("division_name"),
+                SeasonSportDivision.name.label("division_name"),
                 active_player_count.label("roster_count"),
-                Division.minimum_roster_size.label("minimum_roster_size"),
+                SeasonSportDivision.minimum_roster_size.label("minimum_roster_size"),
             )
             .join(
                 SeasonSportDivision,
                 SeasonTeam.season_sport_division_id == SeasonSportDivision.id,
             )
             .join(SeasonSport, SeasonSportDivision.season_sport_id == SeasonSport.id)
-            .join(Division, SeasonSportDivision.division_id == Division.id)
             .outerjoin(Roster, Roster.season_team_id == SeasonTeam.id)
             .outerjoin(
                 Player,
@@ -56,12 +54,12 @@ class SeasonRepository(BaseRepository):
             .group_by(
                 SeasonTeam.id,
                 SeasonTeam.name,
-                Division.id,
-                Division.name,
-                Division.minimum_roster_size,
+                SeasonSportDivision.id,
+                SeasonSportDivision.name,
+                SeasonSportDivision.minimum_roster_size,
             )
-            .having(active_player_count < Division.minimum_roster_size)
-            .order_by(Division.name.asc(), SeasonTeam.name.asc())
+            .having(active_player_count < SeasonSportDivision.minimum_roster_size)
+            .order_by(SeasonSportDivision.name.asc(), SeasonTeam.name.asc())
             .all()
         )
         return [

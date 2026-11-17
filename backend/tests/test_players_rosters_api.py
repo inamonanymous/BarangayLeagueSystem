@@ -7,7 +7,6 @@ from sqlalchemy.exc import IntegrityError
 from app import create_app
 from app.application.rosters.policies import RosterPolicy
 from app.application.rosters.services import RosterService
-from app.domain.models.divisions import Division
 from app.domain.models.players import Player
 from app.domain.models.roles import Role
 from app.domain.models.rosters import Roster
@@ -16,7 +15,6 @@ from app.domain.models.season_sport_divisions import SeasonSportDivision
 from app.domain.models.season_sports import SeasonSport
 from app.domain.models.seasons import Season
 from app.domain.models.season_teams import SeasonTeam
-from app.domain.models.sports import Sport
 from app.domain.models.users import User
 from app.extensions import db
 from app.infrastructure.database.roster_repository import RosterRepository
@@ -60,19 +58,16 @@ def create_registration_team(client):
         f"/api/v1/seasons/{season_id}/status",
         json={"season_status": "REGISTRATION"},
     )
-    sport = Sport(name="Basketball")
-    division = Division(
+    season_sport = SeasonSport(season_id=season_id, name="Basketball")
+    db.session.add(season_sport)
+    db.session.flush()
+    assignment = SeasonSportDivision(
+        season_sport_id=season_sport.id,
         name="Senior",
         gender_policy="ANY",
         minimum_roster_size=5,
         maximum_roster_size=12,
     )
-    db.session.add_all([sport, division])
-    db.session.flush()
-    season_sport = SeasonSport(season_id=season_id, sport_id=sport.id)
-    db.session.add(season_sport)
-    db.session.flush()
-    assignment = SeasonSportDivision(season_sport_id=season_sport.id, division_id=division.id)
     db.session.add(assignment)
     db.session.flush()
     team = SeasonTeam(
@@ -471,7 +466,7 @@ def test_roster_add_rejects_missing_or_archived_team(client):
 def test_roster_enforces_jersey_uniqueness_and_roster_max(client):
     login(client)
     _, _, team_id = create_registration_team(client)
-    division = Division.query.one()
+    division = SeasonSportDivision.query.one()
     division.maximum_roster_size = 1
     db.session.commit()
     first = client.post("/api/v1/players/", json=player_payload()).get_json()["data"]
@@ -495,18 +490,16 @@ def test_available_players_follow_sport_season_and_team_archive_rules(client):
     season_id, assignment_id, team_id = create_registration_team(client)
     assignment = db.session.get(SeasonSportDivision, assignment_id)
     original_sport = db.session.get(SeasonSport, assignment.season_sport_id)
-    junior = Division(name="Junior", gender_policy="ANY", minimum_roster_size=5, maximum_roster_size=12)
-    volleyball = Sport(name="Volleyball")
     other_season = Season(name="Other season", year=date.today().year, season_status="PLANNING")
-    db.session.add_all([junior, volleyball, other_season])
+    db.session.add(other_season)
     db.session.flush()
-    volleyball_association = SeasonSport(season_id=season_id, sport_id=volleyball.id)
-    other_association = SeasonSport(season_id=other_season.id, sport_id=original_sport.sport_id)
+    volleyball_association = SeasonSport(season_id=season_id, name="Volleyball")
+    other_association = SeasonSport(season_id=other_season.id, name=original_sport.name)
     db.session.add_all([volleyball_association, other_association])
     db.session.flush()
-    junior_assignment = SeasonSportDivision(season_sport_id=original_sport.id, division_id=junior.id)
-    volleyball_assignment = SeasonSportDivision(season_sport_id=volleyball_association.id, division_id=junior.id)
-    other_assignment = SeasonSportDivision(season_sport_id=other_association.id, division_id=junior.id)
+    junior_assignment = SeasonSportDivision(season_sport_id=original_sport.id, name="Junior", gender_policy="ANY", minimum_roster_size=5, maximum_roster_size=12)
+    volleyball_assignment = SeasonSportDivision(season_sport_id=volleyball_association.id, name="Junior", gender_policy="ANY", minimum_roster_size=5, maximum_roster_size=12)
+    other_assignment = SeasonSportDivision(season_sport_id=other_association.id, name="Junior", gender_policy="ANY", minimum_roster_size=5, maximum_roster_size=12)
     db.session.add_all([junior_assignment, volleyball_assignment, other_assignment])
     db.session.flush()
     teams = [
@@ -531,6 +524,14 @@ def test_available_players_follow_sport_season_and_team_archive_rules(client):
     response = client.get(url)
     assert response.status_code == 200
     assert {player["id"] for player in response.get_json()["data"]} == {player.id for player in players[2:6]}
+    second_season = db.session.get(Season, other_season.id)
+    second_season.season_status = "REGISTRATION"
+    db.session.commit()
+    reused = client.post(
+        f"/api/v1/season-teams/{teams[3].id}/roster",
+        json={"player_id": players[0].id, "jersey_number": "2"},
+    )
+    assert reused.status_code == 201
     rejected = client.post(
         f"/api/v1/season-teams/{team_id}/roster",
         json={"player_id": players[1].id, "jersey_number": "2"},

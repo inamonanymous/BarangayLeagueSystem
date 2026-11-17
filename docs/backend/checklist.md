@@ -17,17 +17,17 @@ Last reviewed: 2026-11-15
 
 - [~] Users and roles: create users and enforce roles; list/edit/activation/password reset remain.
 - [~] Seasons: create, list, status transitions, date validation, and roster readiness; concurrency enforcement remains.
-- [x] Sport and division catalogs and season-specific assignments.
+- [x] Season-owned sport and division configuration.
 - [~] Season teams: register, list, edit, archive, and restore; archive/restore require Registration and restore checks roster conflicts.
 - [~] Players and rosters: player CRUD/archive and roster add/list/update/remove, including adult voter verification; division eligibility policy is not fully defined.
 - [x] Demo team/player seed and read-only post-seed verification for development.
 - [~] Game scheduling and overlap validation implemented for creation, listing, and rescheduling; cancellation remains.
+- [~] Game scores, player statistics, finalization, reopening history and dynamic win/loss standings implemented; local migration verified and manual verification remains.
 
 ## Planned features
 
 - [ ] Venues and Rounds, subject to the scheduling and V1 design decisions.
-- [ ] Game results, finalization and corrections.
-- [ ] Standings and player statistics.
+- [ ] Season/career statistics and leaderboards.
 - [ ] Playoffs, audit logs, and reports.
 - [ ] Independent voter-registration source, if required by the agreed policy.
 

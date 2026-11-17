@@ -1,15 +1,17 @@
-from flask import Blueprint, request
+from flask import Blueprint, request, session
 from marshmallow import ValidationError
 
-from app.application.common.decorators.authorization import admin_required
+from app.application.common.decorators.authorization import admin_or_encoder_required, admin_required
 from app.application.common.responses.api_response import error_response, success_response
 from app.application.games.services import GameService, ScheduleConflictError
-from app.schemas.game_schema import RescheduleGameSchema, ScheduleGameSchema
+from app.schemas.game_schema import GameResultSchema, ReopenGameSchema, RescheduleGameSchema, ScheduleGameSchema
 
 
 games_bp = Blueprint("games", __name__)
 schedule_game_schema = ScheduleGameSchema()
 reschedule_game_schema = RescheduleGameSchema()
+game_result_schema = GameResultSchema()
+reopen_game_schema = ReopenGameSchema()
 
 
 @games_bp.get("/season-sport-divisions/<int:assignment_id>/games")
@@ -18,7 +20,7 @@ def list_games(assignment_id: int):
         games = GameService().list_for_division(assignment_id)
     except LookupError as exc:
         return error_response(str(exc), status_code=404)
-    return success_response("Games retrieved.", [game.to_dict() for game in games])
+    return success_response("Games retrieved.", games)
 
 
 @games_bp.post("/season-sport-divisions/<int:assignment_id>/games")
@@ -37,7 +39,7 @@ def schedule_game(assignment_id: int):
         return error_response(str(exc), status_code=409)
     except ValueError as exc:
         return error_response(str(exc), status_code=400)
-    return success_response("Game scheduled.", game.to_dict(), status_code=201)
+    return success_response("Game scheduled.", game, status_code=201)
 
 
 @games_bp.put("/games/<int:game_id>/schedule")
@@ -56,4 +58,60 @@ def reschedule_game(game_id: int):
         return error_response(str(exc), status_code=409)
     except ValueError as exc:
         return error_response(str(exc), status_code=400)
-    return success_response("Game rescheduled.", game.to_dict())
+    return success_response("Game rescheduled.", game)
+
+
+@games_bp.get("/season-sport-divisions/<int:assignment_id>/standings")
+def standings(assignment_id: int):
+    try:
+        data = GameService().standings(assignment_id)
+    except LookupError as exc:
+        return error_response(str(exc), status_code=404)
+    return success_response("Standings retrieved.", data)
+
+
+@games_bp.put("/games/<int:game_id>/result")
+@admin_or_encoder_required
+def save_game_result(game_id: int):
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return error_response("A JSON request body is required.", status_code=400)
+    try:
+        game = GameService().save_result(game_id, **game_result_schema.load(payload))
+    except ValidationError as exc:
+        return error_response("Validation failed.", status_code=400, errors=exc.messages)
+    except LookupError as exc:
+        return error_response(str(exc), status_code=404)
+    except ValueError as exc:
+        return error_response(str(exc), status_code=400)
+    return success_response("Game result saved.", game)
+
+
+@games_bp.post("/games/<int:game_id>/finalize")
+@admin_required
+def finalize_game(game_id: int):
+    try:
+        game = GameService().finalize_result(game_id, session["user_id"])
+    except LookupError as exc:
+        return error_response(str(exc), status_code=404)
+    except ValueError as exc:
+        return error_response(str(exc), status_code=400)
+    return success_response("Game finalized.", game)
+
+
+@games_bp.post("/games/<int:game_id>/reopen")
+@admin_required
+def reopen_game(game_id: int):
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return error_response("A JSON request body is required.", status_code=400)
+    try:
+        data = reopen_game_schema.load(payload)
+        game = GameService().reopen_result(game_id, session["user_id"], data["reason"])
+    except ValidationError as exc:
+        return error_response("Validation failed.", status_code=400, errors=exc.messages)
+    except LookupError as exc:
+        return error_response(str(exc), status_code=404)
+    except ValueError as exc:
+        return error_response(str(exc), status_code=400)
+    return success_response("Game reopened.", game)

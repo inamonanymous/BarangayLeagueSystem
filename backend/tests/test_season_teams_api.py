@@ -8,7 +8,6 @@ from app import create_app
 from app.application.rosters.services import RosterConflictError, RosterService
 from app.application.teams.services import SeasonTeamConflictError, SeasonTeamService
 from app.config.testing import TestingConfig
-from app.domain.models.divisions import Division
 from app.domain.models.players import Player
 from app.domain.models.roles import Role
 from app.domain.models.rosters import Roster
@@ -16,7 +15,6 @@ from app.domain.models.season_sport_divisions import SeasonSportDivision
 from app.domain.models.season_sports import SeasonSport
 from app.domain.models.seasons import Season
 from app.domain.models.season_teams import SeasonTeam
-from app.domain.models.sports import Sport
 from app.domain.models.users import User
 from app.extensions import db
 from app.infrastructure.database.roster_repository import RosterRepository
@@ -69,21 +67,15 @@ def create_division_assignment(client, *, status="REGISTRATION", window_start=No
             json={"season_status": "REGISTRATION"},
         )
         assert transition.status_code == 200
-    sport = Sport(name=f"Sport {season_id}")
-    division = Division(
-        name=f"Division {season_id}",
-        gender_policy="ANY",
-        minimum_roster_size=5,
-        maximum_roster_size=15,
-    )
-    db.session.add_all([sport, division])
-    db.session.flush()
-    season_sport = SeasonSport(season_id=season_id, sport_id=sport.id)
+    season_sport = SeasonSport(season_id=season_id, name=f"Sport {season_id}")
     db.session.add(season_sport)
     db.session.flush()
     division_assignment = SeasonSportDivision(
         season_sport_id=season_sport.id,
-        division_id=division.id,
+        name=f"Division {season_id}",
+        gender_policy="ANY",
+        minimum_roster_size=5,
+        maximum_roster_size=15,
     )
     db.session.add(division_assignment)
     db.session.commit()
@@ -244,10 +236,10 @@ def test_restore_rejects_players_on_active_team_in_same_sport_and_season(client)
     login(client)
     _, assignment_id = create_division_assignment(client)
     assignment = db.session.get(SeasonSportDivision, assignment_id)
-    junior = Division(name="Junior", gender_policy="ANY", minimum_roster_size=5, maximum_roster_size=15)
-    db.session.add(junior)
-    db.session.flush()
-    other_assignment = SeasonSportDivision(season_sport_id=assignment.season_sport_id, division_id=junior.id)
+    other_assignment = SeasonSportDivision(
+        season_sport_id=assignment.season_sport_id, name="Junior", gender_policy="ANY",
+        minimum_roster_size=5, maximum_roster_size=15,
+    )
     db.session.add(other_assignment)
     db.session.flush()
     teams = [
@@ -293,18 +285,17 @@ def test_restore_ignores_archived_teams_and_other_sports_or_seasons(client):
     login(client)
     season_id, assignment_id = create_division_assignment(client)
     assignment = db.session.get(SeasonSportDivision, assignment_id)
-    division = db.session.get(Division, assignment.division_id)
-    other_sport = Sport(name="Other sport")
     other_season = Season(name="Other season", year=date.today().year, season_status="PLANNING")
-    db.session.add_all([other_sport, other_season])
+    db.session.add(other_season)
     db.session.flush()
     associations = [
-        SeasonSport(season_id=season_id, sport_id=other_sport.id),
-        SeasonSport(season_id=other_season.id, sport_id=db.session.get(SeasonSport, assignment.season_sport_id).sport_id),
+        SeasonSport(season_id=season_id, name="Other sport"),
+        SeasonSport(season_id=other_season.id, name="Other season sport"),
     ]
     db.session.add_all(associations)
     db.session.flush()
-    others = [SeasonSportDivision(season_sport_id=a.id, division_id=division.id) for a in associations]
+    others = [SeasonSportDivision(season_sport_id=a.id, name="Senior", gender_policy="ANY",
+                                  minimum_roster_size=5, maximum_roster_size=15) for a in associations]
     db.session.add_all(others)
     db.session.flush()
     teams = [
@@ -354,16 +345,15 @@ def test_concurrent_restore_and_roster_add_cannot_create_conflict(tmp_path, monk
         actor = User(username="admin", role_id=role.id, is_active=True)
         actor.set_password("password-123")
         season = Season(name="League", year=date.today().year, season_status="REGISTRATION")
-        sport = Sport(name="Basketball")
-        division = Division(name="Senior", gender_policy="ANY", minimum_roster_size=1, maximum_roster_size=15)
         player = Player(first_name="Alex", middle_name="", last_name="Rivera",
                         birthdate=date(date.today().year - 10, 1, 1), gender="MALE", address="Demo")
-        db.session.add_all([actor, season, sport, division, player])
+        db.session.add_all([actor, season, player])
         db.session.flush()
-        association = SeasonSport(season_id=season.id, sport_id=sport.id)
+        association = SeasonSport(season_id=season.id, name="Basketball")
         db.session.add(association)
         db.session.flush()
-        assignment = SeasonSportDivision(season_sport_id=association.id, division_id=division.id)
+        assignment = SeasonSportDivision(season_sport_id=association.id, name="Senior", gender_policy="ANY",
+                                         minimum_roster_size=1, maximum_roster_size=15)
         db.session.add(assignment)
         db.session.flush()
         original = SeasonTeam(name="Original", barangay="Demo", season_sport_division_id=assignment.id, is_archived=True)

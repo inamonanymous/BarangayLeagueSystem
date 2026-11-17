@@ -8,7 +8,6 @@ from app.application.rosters.policies import RosterPolicy
 from app.application.rosters.services import RosterService
 from app.application.teams.policies import TeamPolicy
 from app.application.teams.services import SeasonTeamService
-from app.domain.models.divisions import Division
 from app.domain.models.players import Player
 from app.domain.models.rosters import Roster
 from app.domain.models.season_player_eligibilities import SeasonPlayerEligibility
@@ -16,7 +15,6 @@ from app.domain.models.season_sport_divisions import SeasonSportDivision
 from app.domain.models.season_sports import SeasonSport
 from app.domain.models.seasons import Season
 from app.domain.models.season_teams import SeasonTeam
-from app.domain.models.sports import Sport
 from app.domain.models.users import User
 from app.extensions import db
 from app.infrastructure.database.season_repository import SeasonRepository
@@ -68,21 +66,19 @@ def verify_demo_teams() -> None:
     errors = []
     for division_name, teams, birthdate in DEMO_DIVISIONS:
         assignment = (
-            db.session.query(SeasonSportDivision, Division)
-            .join(Division, Division.id == SeasonSportDivision.division_id)
+            db.session.query(SeasonSportDivision)
             .join(SeasonSport, SeasonSport.id == SeasonSportDivision.season_sport_id)
-            .join(Sport, Sport.id == SeasonSport.sport_id)
             .filter(
                 SeasonSport.season_id == season.id,
-                Sport.name == "Basketball",
-                Division.name == division_name,
+                SeasonSport.name == "Basketball",
+                SeasonSportDivision.name == division_name,
             )
             .first()
         )
         if assignment is None:
             errors.append(f"{division_name}: Basketball division assignment is missing.")
             continue
-        division_assignment, division = assignment
+        division_assignment = division = assignment
         for team_index, team_data in enumerate(teams, start=1):
             team = SeasonTeam.query.filter_by(
                 season_sport_division_id=division_assignment.id, name=team_data["name"]
@@ -152,20 +148,12 @@ def seed_demo_teams(actor_id: int) -> None:
     )
 
     catalog_service = CatalogService()
-    sport = Sport.query.filter_by(name="Basketball").first()
-    if sport is None:
-        sport = catalog_service.create_sport("Basketball")
-
     for division_name, teams, birthdate in DEMO_DIVISIONS:
-        division = Division.query.filter_by(name=division_name).first()
-        if division is None:
-            division = catalog_service.create_division(
-                name=division_name, minimum_roster_size=5, maximum_roster_size=15
-            )
+        division = ensure_division_assignment(catalog_service, season, "Basketball", division_name)
         if division.gender_policy not in {"ANY", "MALE_ONLY"}:
             raise ValueError(f"{division_name} does not allow the male demo players.")
 
-        assignment = ensure_division_assignment(catalog_service, season, sport, division)
+        assignment = division
         team_service = SeasonTeamService()
         player_service = PlayerService()
         roster_service = RosterService()

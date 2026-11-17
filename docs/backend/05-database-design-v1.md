@@ -119,63 +119,20 @@ Business Rules:
 
 ---
 
-# 3. Sport
+# 5. SeasonSport
 
-Master list of supported sports.
+Owns a sport's settings in one season. There is no shared sport catalog.
 
 | Column      | Type         |
 | ----------- | ------------ |
 | id          | BIGINT       |
+| season_id   | BIGINT       |
 | name        | VARCHAR(100) |
 | description | TEXT         |
 | created_at  | DATETIME     |
 | updated_at  | DATETIME     |
 
-Examples:
-
-```text
-Basketball
-Volleyball
-```
-
----
-
-# 4. Division
-
-Reusable league divisions.
-
-| Column              | Type         | Notes                              |
-| ------------------- | ------------ | ---------------------------------- |
-| id                  | BIGINT       | PK                                 |
-| name                | VARCHAR(100) |                                    |
-| gender_policy       | ENUM         | ANY, MALE_ONLY, FEMALE_ONLY, MIXED |
-| minimum_roster_size | INT          |                                    |
-| maximum_roster_size | INT          |                                    |
-| created_at          | DATETIME     |                                    |
-| updated_at          | DATETIME     |                                    |
-
-Examples:
-
-```text
-Junior
-Senior
-Women's
-Pro
-```
-
----
-
-# 5. SeasonSport
-
-Represents a sport participating in a season.
-
-| Column     | Type     |
-| ---------- | -------- |
-| id         | BIGINT   |
-| season_id  | BIGINT   |
-| sport_id   | BIGINT   |
-| created_at | DATETIME |
-| updated_at | DATETIME |
+Names are unique within a season.
 
 Examples:
 
@@ -188,15 +145,20 @@ Summer League 2026 + Volleyball
 
 # 6. SeasonSportDivision
 
-Represents divisions available for a sport in a season.
+Owns a division's settings within one season sport.
 
-| Column          | Type     |
-| --------------- | -------- |
-| id              | BIGINT   |
-| season_sport_id | BIGINT   |
-| division_id     | BIGINT   |
-| created_at      | DATETIME |
-| updated_at      | DATETIME |
+| Column              | Type         | Notes                              |
+| ------------------- | ------------ | ---------------------------------- |
+| id                  | BIGINT       |                                    |
+| season_sport_id     | BIGINT       |                                    |
+| name                | VARCHAR(100) |                                    |
+| gender_policy       | VARCHAR(20)  | ANY, MALE_ONLY, FEMALE_ONLY, MIXED |
+| minimum_roster_size | INT          |                                    |
+| maximum_roster_size | INT          |                                    |
+| created_at          | DATETIME     |                                    |
+| updated_at          | DATETIME     |                                    |
+
+Names are unique within a season sport.
 
 Examples:
 
@@ -338,8 +300,8 @@ Represents both regular season and playoff games.
 
 The table below is the V1 target, not the current scheduling schema. The implemented
 Game stores the season-division assignment, home and away team IDs, free-text venue,
-normalized venue key, local start/end datetimes, and creation time. Status, stages,
-scores, finalization, and playoffs remain planned; see the
+normalized venue key, local start/end datetimes, scores, result status and
+finalization metadata. Stages, managed venues, overtime counts and playoffs remain planned; see the
 [implementation tracker](implementation-alignment.md).
 
 | Column                   | Type     |
@@ -389,12 +351,14 @@ Business Rules:
 
 # 13. StatisticType
 
-Configurable statistics per sport.
+The table below is the V1 target. The implementation uses
+`sport_statistic_configurations` and `statistic_types` with required/scoring
+flags and locks definitions after first entry; timestamps are not stored.
 
 | Column       | Type         |
 | ------------ | ------------ |
 | id           | BIGINT       |
-| sport_id     | BIGINT       |
+| season_sport_id | BIGINT    |
 | name         | VARCHAR(100) |
 | abbreviation | VARCHAR(20)  |
 | created_at   | DATETIME     |
@@ -416,7 +380,9 @@ DIGS
 
 # 14. PlayerGameStatistic
 
-Stores player statistics for a game.
+The table below is the V1 target. The implementation links each value to a
+`game_participants` row, which records the team, player and Played/DNP status.
+Team points use a separate `game_team_points` table; timestamps are not stored.
 
 | Column            | Type          |
 | ----------------- | ------------- |

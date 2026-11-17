@@ -1,34 +1,34 @@
 @startuml
-title Assign or remove season sports and divisions
+title Create or remove season sports and divisions
 skinparam shadowing false
 start
 :Administrator chooses season;
 if (Planning or Registration?) then (yes)
 else (no)
-  :Reject assignment change;
+  :Reject configuration change;
   stop
 endif
-if (Action?) then (assign)
-  if (Assign sport or division?) then (sport)
-    :Choose existing sport;
-    if (Already assigned?) then (yes)
+if (Action?) then (create)
+  if (Create sport or division?) then (sport)
+    :Enter sport details;
+    if (Name already used in season?) then (yes)
       :Reject;
     else (no)
-      :Save SeasonSport link;
+      :Save SeasonSport;
     endif
   else (division)
-    :Choose existing division for assigned sport;
-    if (Already assigned to sport?) then (yes)
+    :Enter division details for season sport;
+    if (Name already used in sport?) then (yes)
       :Reject;
     else (no)
-      :Save SeasonSportDivision link;
+      :Save SeasonSportDivision;
     endif
   endif
 else (remove)
   if (Assignment has registered teams?) then (yes)
     :Reject;
   else (no)
-    :Remove assignment link, not catalog record;
+    :Remove seasonal configuration;
   endif
 endif
 stop

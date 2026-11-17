@@ -5,8 +5,7 @@
 The League Management System frontend is a Single Page Application (SPA) built using React 19.
 
 The current interface supports public browsing and Administrator management.
-Encoder and Viewer roles exist, but result/statistics entry and related screens
-are not implemented.
+Administrators and Encoders can enter game scores and player statistics.
 
 The frontend communicates with the backend through a REST API and has no direct
 database access. It performs UI validation and enables or disables controls based
@@ -45,7 +44,7 @@ Current feature folders include:
 
 Team, roster, and game schedule components currently live under the Seasons
 feature. Shared API functions, layout, and tab components live under `shared`.
-Standings are planned, not a current frontend feature.
+Division standings are available with the game schedule.
 
 This approach improves scalability, readability, and maintainability as the application grows.
 

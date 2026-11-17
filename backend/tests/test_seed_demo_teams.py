@@ -3,12 +3,12 @@ from datetime import date, timedelta
 import pytest
 
 from app import create_app
-from app.domain.models.divisions import Division
 from app.domain.models.players import Player
 from app.domain.models.roles import Role
 from app.domain.models.rosters import Roster
 from app.domain.models.season_player_eligibilities import SeasonPlayerEligibility
 from app.domain.models.season_sport_divisions import SeasonSportDivision
+from app.domain.models.season_sports import SeasonSport
 from app.domain.models.seasons import Season
 from app.domain.models.season_teams import SeasonTeam
 from app.domain.models.users import User
@@ -34,11 +34,14 @@ def demo_database():
             registration_start_date=today,
             registration_end_date=today,
         )
+        db.session.add_all([admin, season])
+        db.session.flush()
+        sport = SeasonSport(season_id=season.id, name="Basketball")
+        db.session.add(sport)
+        db.session.flush()
         db.session.add_all([
-            admin,
-            season,
-            Division(name="Senior", gender_policy="ANY", minimum_roster_size=10, maximum_roster_size=15),
-            Division(name="Junior", gender_policy="ANY", minimum_roster_size=10, maximum_roster_size=15),
+            SeasonSportDivision(season_sport_id=sport.id, name="Senior", gender_policy="ANY", minimum_roster_size=10, maximum_roster_size=15),
+            SeasonSportDivision(season_sport_id=sport.id, name="Junior", gender_policy="ANY", minimum_roster_size=10, maximum_roster_size=15),
         ])
         db.session.commit()
         yield admin, season
@@ -54,8 +57,7 @@ def test_seed_creates_complete_rosters_and_is_repeatable(demo_database):
     assert Player.query.count() == 70
     assert Roster.query.count() == 70
     assert SeasonPlayerEligibility.query.filter_by(season_id=season.id).count() == 40
-    for division in Division.query.all():
-        assignment = SeasonSportDivision.query.filter_by(division_id=division.id).one()
+    for assignment in SeasonSportDivision.query.all():
         teams = SeasonTeam.query.filter_by(season_sport_division_id=assignment.id).all()
         assert len(teams) >= 3
         assert all(Roster.query.filter_by(season_team_id=team.id).count() == 10 for team in teams)
@@ -81,7 +83,7 @@ def test_seed_rejects_closed_registration_before_creating_data(demo_database):
 def test_read_only_check_reports_other_incomplete_teams(demo_database, capsys):
     admin, season = demo_database
     seed_demo_teams(admin.id)
-    assignment = SeasonSportDivision.query.join(Division).filter(Division.name == "Senior").one()
+    assignment = SeasonSportDivision.query.filter_by(name="Senior").one()
     db.session.add(SeasonTeam(
         season_sport_division_id=assignment.id, name="Existing Team", barangay="Existing"
     ))

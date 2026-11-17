@@ -22,12 +22,14 @@ Not every request uses every layer. Implemented feature services use policies an
 
 - **Authentication and users:** login, logout, current-user lookup, session-based authentication, and Administrator-only user creation.
 - **Season lifecycle:** list/create, controlled status transitions, history retention, single-active-season validation at the service layer, and an active-roster minimum check before Ongoing.
-- **Sports and divisions:** catalog create/list/update/delete, plus season-specific sport and division assignments. Catalog deletion is rejected while referenced; season assignments may be edited only while the season is Planning or Registration.
+- **Sports and divisions:** season-owned sport and division creation, editing and removal during Planning or Registration. Removal is rejected when teams are registered.
 - **Teams and rosters:** public team/roster lists; Administrator team registration, edits, archive/restore, roster membership changes, jersey updates, and season-window validation. Archive and restore require Registration status; restore also requires an open window and no roster player on another active team in the same sport and season. The Administrator-only available-player list excludes players already on active teams in the same sport and season.
 - **Players:** Administrator player profile create/read/update/archive/restore, with season voter eligibility recorded for adult roster additions.
 - **Game scheduling:** public division game listings; Administrators can schedule or reschedule during Ongoing with team and venue overlap checks. Rescheduling retains teams and requires both the original and new starts to be in the future.
+- **Game results and standings:** Administrators and Encoders enter scores; Administrators finalize or reopen with an audit reason. Standings are calculated from finalized games.
+- **Game statistics:** Administrators configure season-sport statistic types; Administrators and Encoders enter player participation and values. Finalization validates completeness and configured score matching.
 
-The current ORM models are User, Role, Season, Sport, Division, SeasonSport, SeasonSportDivision, SeasonTeam, Player, Roster, SeasonPlayerEligibility, Game, and ScheduleLock. Game cancellation and results, standings, statistics, playoffs, reports, audit logging, idempotency storage, managed venues, and system settings remain planned.
+The ORM also includes sport statistic configurations and types, game participants, player game statistics and team points. Game cancellation, aggregate statistics, playoffs, reports, general audit logging, idempotency storage, managed venues, and system settings remain planned.
 
 ## Main Packages
 
@@ -45,7 +47,13 @@ Authentication flows through [auth routes](../../backend/app/api/v1/auth/routes.
 
 Season configuration flows through [season routes](../../backend/app/api/v1/seasons/routes.py), [CatalogService](../../backend/app/application/catalogs/services.py), [CatalogPolicy](../../backend/app/application/catalogs/policies.py), and [CatalogRepository](../../backend/app/infrastructure/database/catalog_repository.py).
 
-Scheduling flows through [game routes](../../backend/app/api/v1/games/routes.py), [game schemas](../../backend/app/schemas/game_schema.py), [GameService](../../backend/app/application/games/services.py), [GamePolicy](../../backend/app/application/games/policies.py), and [GameRepository](../../backend/app/infrastructure/database/game_repository.py). The service coordinates policy checks, locked queries, and the transaction.
+Scheduling flows through [game routes](../../backend/app/api/v1/games/routes.py), [game schemas](../../backend/app/schemas/game_schema.py), [GameService](../../backend/app/application/games/services.py), [GamePolicy](../../backend/app/application/games/policies.py), and [GameRepository](../../backend/app/infrastructure/database/game_repository.py). The repository supplies [typed snapshots](../../backend/app/application/games/types.py) for policy validation and owns ORM persistence. The service coordinates lookups, the schedule lock and the unit of work.
+
+Statistics flow through [statistics routes](../../backend/app/api/v1/statistics/routes.py),
+[StatisticsService](../../backend/app/application/statistics/services.py),
+[StatisticsPolicy](../../backend/app/application/statistics/policies.py), and
+[StatisticsRepository](../../backend/app/infrastructure/database/statistics_repository.py).
+Writes share the schedule lock and unit of work with game finalization.
 
 Roster changes flow through [team routes](../../backend/app/api/v1/teams/routes.py), [RosterService](../../backend/app/application/rosters/services.py), [RosterPolicy](../../backend/app/application/rosters/policies.py), and [RosterRepository](../../backend/app/infrastructure/database/roster_repository.py). The repository converts ORM records to [typed snapshots and response data](../../backend/app/application/rosters/types.py), so the service and policy do not manipulate ORM models. The [transaction wrapper](../../backend/app/infrastructure/database/unit_of_work.py) commits roster and adult eligibility changes together and rolls them back on failure. Roster additions and team archive/restore use a [shared season-sport lock](../../backend/app/infrastructure/database/team_roster_lock.py) to serialize the conflict check and write. Roster lists fetch their players in one joined query.
 

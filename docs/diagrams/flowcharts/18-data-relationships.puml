@@ -2,9 +2,7 @@
 title Main data relationships - learning map
 skinparam shadowing false
 rectangle Season
-rectangle "Sport catalog" as Sport
 rectangle SeasonSport
-rectangle "Division catalog" as Division
 rectangle SeasonSportDivision
 rectangle SeasonTeam
 rectangle Roster
@@ -13,9 +11,7 @@ rectangle SeasonPlayerEligibility
 rectangle Game
 rectangle "Singleton ScheduleLock" as ScheduleLock
 Season --> SeasonSport
-Sport --> SeasonSport
 SeasonSport --> SeasonSportDivision
-Division --> SeasonSportDivision
 SeasonSportDivision --> SeasonTeam
 SeasonTeam --> Roster
 Player --> Roster

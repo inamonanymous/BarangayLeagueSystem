@@ -3,7 +3,6 @@ from datetime import date
 import pytest
 
 from app import create_app
-from app.domain.models.divisions import Division
 from app.domain.models.players import Player
 from app.domain.models.roles import Role
 from app.domain.models.rosters import Roster
@@ -11,7 +10,6 @@ from app.domain.models.season_sport_divisions import SeasonSportDivision
 from app.domain.models.season_sports import SeasonSport
 from app.domain.models.seasons import Season
 from app.domain.models.season_teams import SeasonTeam
-from app.domain.models.sports import Sport
 from app.domain.models.users import User
 from app.extensions import db
 
@@ -63,22 +61,15 @@ def create_team_with_roster(
     archived_player_count=0,
     is_archived=False,
 ):
-    sport = Sport(name=f"{name} Sport")
-    division = Division(
-        name=f"{name} Division",
-        gender_policy="ANY",
-        minimum_roster_size=minimum_roster_size,
-        maximum_roster_size=max(minimum_roster_size, roster_size),
-    )
-    db.session.add_all([sport, division])
-    db.session.flush()
-
-    season_sport = SeasonSport(season_id=season_id, sport_id=sport.id)
+    season_sport = SeasonSport(season_id=season_id, name=f"{name} Sport")
     db.session.add(season_sport)
     db.session.flush()
     assignment = SeasonSportDivision(
         season_sport_id=season_sport.id,
-        division_id=division.id,
+        name=f"{name} Division",
+        gender_policy="ANY",
+        minimum_roster_size=minimum_roster_size,
+        maximum_roster_size=max(minimum_roster_size, roster_size),
     )
     db.session.add(assignment)
     db.session.flush()

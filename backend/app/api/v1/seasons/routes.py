@@ -6,14 +6,14 @@ from app.application.common.responses.api_response import error_response, succes
 from app.application.season.policies import SeasonConflictError
 from app.application.season.services import SeasonService
 from app.application.catalogs.services import CatalogConflictError, CatalogService
-from app.schemas.catalog_schema import AddDivisionToSeasonSportSchema, AddSportToSeasonSchema
+from app.schemas.catalog_schema import CreateDivisionSchema, CreateSportSchema
 from app.schemas.season_schema import CreateSeasonSchema, TransitionSeasonSchema
 
 seasons_bp = Blueprint("seasons", __name__, url_prefix="/seasons")
 create_season_schema = CreateSeasonSchema()
 transition_season_schema = TransitionSeasonSchema()
-add_sport_schema = AddSportToSeasonSchema()
-add_division_schema = AddDivisionToSeasonSportSchema()
+add_sport_schema = CreateSportSchema()
+add_division_schema = CreateDivisionSchema()
 
 
 @seasons_bp.get("/")
@@ -98,7 +98,7 @@ def add_sport_to_season(season_id: int):
         return error_response("A JSON request body is required.", status_code=400)
     try:
         data = add_sport_schema.load(payload)
-        association = CatalogService().add_sport_to_season(season_id, data["sport_id"])
+        association = CatalogService().create_sport(season_id, **data)
     except ValidationError as exc:
         return error_response("Validation failed.", status_code=400, errors=exc.messages)
     except LookupError as exc:
@@ -118,10 +118,7 @@ def add_division_to_season_sport(season_sport_id: int):
         return error_response("A JSON request body is required.", status_code=400)
     try:
         data = add_division_schema.load(payload)
-        association = CatalogService().add_division_to_season_sport(
-            season_sport_id,
-            data["division_id"],
-        )
+        association = CatalogService().create_division(season_sport_id, **data)
     except ValidationError as exc:
         return error_response("Validation failed.", status_code=400, errors=exc.messages)
     except LookupError as exc:
@@ -131,6 +128,44 @@ def add_division_to_season_sport(season_sport_id: int):
     except ValueError as exc:
         return error_response(str(exc), status_code=400)
     return success_response("Division added to season sport.", association.to_dict(), status_code=201)
+
+
+@seasons_bp.put("/<int:season_id>/sports/<int:season_sport_id>")
+@admin_required
+def update_sport_in_season(season_id: int, season_sport_id: int):
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return error_response("A JSON request body is required.", status_code=400)
+    try:
+        sport = CatalogService().update_sport(season_id, season_sport_id, **add_sport_schema.load(payload))
+    except ValidationError as exc:
+        return error_response("Validation failed.", status_code=400, errors=exc.messages)
+    except LookupError as exc:
+        return error_response(str(exc), status_code=404)
+    except CatalogConflictError as exc:
+        return error_response(str(exc), status_code=409)
+    except ValueError as exc:
+        return error_response(str(exc), status_code=400)
+    return success_response("Sport updated.", sport.to_dict())
+
+
+@seasons_bp.put("/sports/<int:season_sport_id>/divisions/<int:division_id>")
+@admin_required
+def update_division_in_season_sport(season_sport_id: int, division_id: int):
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return error_response("A JSON request body is required.", status_code=400)
+    try:
+        division = CatalogService().update_division(season_sport_id, division_id, **add_division_schema.load(payload))
+    except ValidationError as exc:
+        return error_response("Validation failed.", status_code=400, errors=exc.messages)
+    except LookupError as exc:
+        return error_response(str(exc), status_code=404)
+    except CatalogConflictError as exc:
+        return error_response(str(exc), status_code=409)
+    except ValueError as exc:
+        return error_response(str(exc), status_code=400)
+    return success_response("Division updated.", division.to_dict())
 
 
 @seasons_bp.delete("/<int:season_id>/sports/<int:season_sport_id>")

@@ -1,13 +1,15 @@
 import { useState } from 'react'
 import { AxiosError } from 'axios'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { getDivisionGames, getTeamsForDivision, rescheduleGame, scheduleGame, type ScheduledGame, type SeasonStatus } from '../../shared/api/seasons'
+import { getDivisionGames, getStandings, getTeamsForDivision, rescheduleGame, scheduleGame, type ScheduledGame, type SeasonStatus } from '../../shared/api/seasons'
+import GameResultControls from './GameResultControls'
 import { seasonDataStaleTime } from './queryOptions'
 
 interface Props {
   divisionAssignmentId: number
   seasonStatus: SeasonStatus
   isAdmin: boolean
+  canEncode: boolean
   isActive: boolean
 }
 
@@ -20,7 +22,7 @@ function errorMessage(error: unknown): string {
   return 'Could not load or schedule games.'
 }
 
-function DivisionScheduleSection({ divisionAssignmentId, seasonStatus, isAdmin, isActive }: Props) {
+function DivisionScheduleSection({ divisionAssignmentId, seasonStatus, isAdmin, canEncode, isActive }: Props) {
   const queryClient = useQueryClient()
   const queryKey = ['division-games', divisionAssignmentId] as const
   const [home, setHome] = useState('')
@@ -33,6 +35,12 @@ function DivisionScheduleSection({ divisionAssignmentId, seasonStatus, isAdmin, 
   const teams = useQuery({
     queryKey: ['season-teams', divisionAssignmentId],
     queryFn: () => getTeamsForDivision(divisionAssignmentId),
+    enabled: isActive,
+    staleTime: seasonDataStaleTime,
+  })
+  const standings = useQuery({
+    queryKey: ['division-standings', divisionAssignmentId],
+    queryFn: () => getStandings(divisionAssignmentId),
     enabled: isActive,
     staleTime: seasonDataStaleTime,
   })
@@ -86,6 +94,8 @@ function DivisionScheduleSection({ divisionAssignmentId, seasonStatus, isAdmin, 
               <strong>{teamName(game.home_team_id)} vs {teamName(game.away_team_id)}</strong>
               <span>{new Date(game.starts_at).toLocaleString()} - {new Date(game.ends_at).toLocaleString()}</span>
               <span>Venue: {game.venue}</span>
+              <GameResultControls game={game} divisionId={divisionAssignmentId} isAdmin={isAdmin}
+                canEncode={canEncode} seasonStatus={seasonStatus} />
               {editingGame?.id === game.id && isAdmin && seasonStatus === 'ONGOING' ? (
                 <form className="schedule-form" onSubmit={(event) => {
                   event.preventDefault()
@@ -115,6 +125,18 @@ function DivisionScheduleSection({ divisionAssignmentId, seasonStatus, isAdmin, 
           ))}
         </ul>
       ) : null}
+      <h5>Standings</h5>
+      <p className="muted-help">Finalized games only. Equal wins are ranked by head-to-head win percentage among tied teams; teams with no head-to-head games rank last in the tie.</p>
+      {standings.isPending && isActive ? <p>Loading standings...</p> : null}
+      {standings.isError ? <p role="alert">{errorMessage(standings.error)}</p> : null}
+      {standings.data?.length ? (
+        <table>
+          <thead><tr><th scope="col">Rank</th><th scope="col">Team</th><th scope="col">Wins</th><th scope="col">Losses</th></tr></thead>
+          <tbody>{standings.data.map((standing) => (
+            <tr key={standing.team_id}><td>{standing.rank}</td><td>{standing.team_name}{standing.is_archived ? ' (archived)' : ''}</td><td>{standing.wins}</td><td>{standing.losses}</td></tr>
+          ))}</tbody>
+        </table>
+      ) : standings.data ? <p>No teams in this division yet.</p> : null}
       {reschedule.isSuccess ? <p role="status">Game rescheduled.</p> : null}
       {isAdmin && seasonStatus !== 'ONGOING' ? <p className="muted-help">Scheduling is available when the season is Ongoing.</p> : null}
       {isAdmin && seasonStatus === 'ONGOING' && !teams.isError ? (

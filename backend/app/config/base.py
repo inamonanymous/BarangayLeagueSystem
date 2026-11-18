@@ -12,5 +12,9 @@ class Config:
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SESSION_TYPE = "filesystem"
+    SESSION_FILE_DIR = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "..", "flask_session")
+    )
+    SESSION_FILE_THRESHOLD = 0
     TESTING = False
     

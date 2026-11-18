@@ -63,6 +63,23 @@ To view the app on another device connected to the same trusted Wi-Fi network, r
 
 For an existing database with the required legacy schema, back up the database and review its migration state before running `..\.venv\Scripts\python.exe -m flask --app wsgi db upgrade` from `backend`. The migration chain is not a complete fresh-install solution.
 
+## Session cleanup
+
+Sessions are stored in `backend\flask_session`. Size-based eviction is disabled;
+expired files remain until cleaned up. Stop **all** application servers using
+this directory before running the cleanup, so a session cannot be refreshed
+while its file is being removed:
+
+```powershell
+Set-Location backend
+..\.venv\Scripts\python.exe -m flask --app wsgi cleanup-expired-sessions --confirm-stopped
+```
+
+The command removes expired session files only. It can be scheduled during a
+maintenance window when all servers are stopped. Monitor disk usage, since
+files accumulate if cleanup is not run. Do not delete the whole directory while
+the app is running; doing so would log users out.
+
 ## Testing
 
 From `backend`, run the backend suite against its in-memory SQLite testing configuration:

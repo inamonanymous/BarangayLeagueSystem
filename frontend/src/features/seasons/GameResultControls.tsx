@@ -7,12 +7,14 @@ import GameStatisticsPanel from './GameStatisticsPanel'
 interface Props {
   game: ScheduledGame
   divisionId: number
+  homeTeamName: string
+  awayTeamName: string
   isAdmin: boolean
   canEncode: boolean
   seasonStatus: SeasonStatus
 }
 
-function GameResultControls({ game, divisionId, isAdmin, canEncode, seasonStatus }: Props) {
+function GameResultControls({ game, divisionId, homeTeamName, awayTeamName, isAdmin, canEncode, seasonStatus }: Props) {
   const client = useQueryClient()
   const [editing, setEditing] = useState(false)
   const [home, setHome] = useState('')
@@ -44,17 +46,15 @@ function GameResultControls({ game, divisionId, isAdmin, canEncode, seasonStatus
 
   return (
     <div>
+      <h2>Scores and result</h2>
       <p>Result: {game.result_status}{game.home_score !== null && game.away_score !== null
-        ? ` · ${game.home_score} – ${game.away_score}` : ' · No scores entered'}</p>
+        ? ` · Home: ${game.home_score} – Away: ${game.away_score}` : ' · No scores entered'}</p>
       {error ? <p role="alert">{message}</p> : null}
-      <GameStatisticsPanel gameId={game.id}
-        canEdit={canEncode && canChange && game.result_status !== 'FINALIZED'}
-        onEditingChange={setEditingStatistics} />
       {canEncode && canChange && game.result_status !== 'FINALIZED' ? (
         editing ? (
           <form onSubmit={(event) => { event.preventDefault(); save.mutate() }}>
-            <label>Home score <input required type="number" min="0" step="1" value={home} onChange={(event) => setHome(event.target.value)} /></label>
-            <label>Away score <input required type="number" min="0" step="1" value={away} onChange={(event) => setAway(event.target.value)} /></label>
+            <label>Home score ({homeTeamName}) <input required type="number" min="0" step="1" value={home} onChange={(event) => setHome(event.target.value)} /></label>
+            <label>Away score ({awayTeamName}) <input required type="number" min="0" step="1" value={away} onChange={(event) => setAway(event.target.value)} /></label>
             <button type="submit" disabled={busy}>Save scores</button>
             <button type="button" onClick={() => setEditing(false)}>Cancel</button>
           </form>
@@ -63,6 +63,9 @@ function GameResultControls({ game, divisionId, isAdmin, canEncode, seasonStatus
           save.reset(); setEditing(true)
         }}>Enter or edit scores</button>
       ) : null}
+      <GameStatisticsPanel gameId={game.id} homeTeamId={game.home_team_id} awayTeamId={game.away_team_id}
+        canEdit={canEncode && canChange && game.result_status !== 'FINALIZED'}
+        onEditingChange={setEditingStatistics} />
       {isAdmin && canChange && game.result_status === 'FOR_ENCODING' ? (
         <button type="button" disabled={busy || editingStatistics} onClick={() => finalize.mutate()}>Finalize result</button>
       ) : null}

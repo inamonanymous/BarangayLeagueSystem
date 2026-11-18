@@ -109,7 +109,7 @@ def verify_demo_teams() -> None:
                 ):
                     errors.append(f"{label}: demo player missing, changed, archived, or not on this roster.")
                     continue
-                if RosterPolicy.is_adult(player.birthdate, date.today()):
+                if season.voter_required and RosterPolicy.is_adult(player.birthdate, date.today()):
                     eligibility = SeasonPlayerEligibility.query.filter_by(
                         season_id=season.id, player_id=player.id
                     ).first()
@@ -173,22 +173,29 @@ def seed_demo_teams(actor_id: int) -> None:
                 identity = demo_player_identity(division_name, team_index, number)
                 player = Player.query.filter_by(**identity, birthdate=birthdate).first()
                 address = f"DEMO - {team_data['barangay']}"
+                demo_voter = f"DEMO-{division_name.upper()}-{team_index}-{number}"
+                needs_voter = season.voter_required and RosterPolicy.is_adult(birthdate, date.today())
                 if player is None:
-                    player = player_service.create_player(
+                    created_player = player_service.create_player(
                         first_name=identity["first_name"],
                         middle_name=None,
                         last_name=identity["last_name"],
                         birthdate=birthdate,
                         gender="MALE",
                         address=address,
+                        voter_year=season.year if needs_voter else None,
+                        voter_number=demo_voter if needs_voter else None,
                     )
+                    player_id = created_player["id"]
                 elif player.is_archived or player.address != address or player.gender != "MALE":
                     raise ValueError(f"Demo player {identity['first_name']} {identity['last_name']} was changed or archived.")
+                else:
+                    player_id = player.id
 
-                if Roster.query.filter_by(season_team_id=team.id, player_id=player.id).first():
+                if Roster.query.filter_by(season_team_id=team.id, player_id=player_id).first():
                     continue
                 eligibility = SeasonPlayerEligibility.query.filter_by(
-                    season_id=season.id, player_id=player.id
+                    season_id=season.id, player_id=player_id
                 ).first()
                 if eligibility is not None and not is_demo_eligibility(
                     eligibility, division_name, team_index, number
@@ -197,6 +204,13 @@ def seed_demo_teams(actor_id: int) -> None:
                         f"Demo player {identity['first_name']} {identity['last_name']} "
                         "has changed voter details; check them before seeding."
                     )
+                if needs_voter:
+                    voter_ids = player_service.list_voter_ids(player_id)
+                    existing = next((item for item in voter_ids if item["year"] == season.year), None)
+                    if existing and existing["voter_number"] != demo_voter:
+                        raise ValueError(f"Demo player {identity['first_name']} {identity['last_name']} has changed voter details.")
+                    if existing is None:
+                        player_service.save_voter_id(player_id, season.year, demo_voter)
                 used_jerseys = {
                     entry.jersey_number.casefold()
                     for entry in Roster.query.filter_by(season_team_id=team.id).all()
@@ -206,11 +220,10 @@ def seed_demo_teams(actor_id: int) -> None:
                     jersey += 1
                 roster_service.add_player(
                     team.id,
-                    player_id=player.id,
+                    player_id=player_id,
                     jersey_number=str(jersey),
                     actor_id=actor_id,
                     voter_verified=True,
-                    voter_number=f"DEMO-{division_name.upper()}-{team_index}-{number}",
                     eligibility_notes="Fictional demo player; voter details are not real.",
                 )
     verify_demo_teams()

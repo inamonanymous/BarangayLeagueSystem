@@ -30,6 +30,7 @@ def demo_database():
         season = Season(
             name=SEASON_NAME,
             year=today.year,
+            voter_required=True,
             season_status="REGISTRATION",
             registration_start_date=today,
             registration_end_date=today,

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { AxiosError } from 'axios'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { createSeason, getSeasons, seasonsQueryKey, transitionSeason, type CreateSeasonPayload, type Season, type SeasonStatus } from '../../shared/api/seasons'
+import { createSeason, getSeasons, seasonsQueryKey, transitionSeason, updateSeasonVoterRule, type CreateSeasonPayload, type Season, type SeasonStatus } from '../../shared/api/seasons'
 import { useCurrentUser } from '../auth/useCurrentUser'
 
 interface ApiErrorResponse {
@@ -33,6 +33,7 @@ function SeasonsPage() {
   const { data: currentUser } = useCurrentUser()
   const [name, setName] = useState('')
   const [year, setYear] = useState(String(new Date().getFullYear()))
+  const [voterRequired, setVoterRequired] = useState(false)
   const [registrationStartDate, setRegistrationStartDate] = useState('')
   const [registrationEndDate, setRegistrationEndDate] = useState('')
   const [startDate, setStartDate] = useState('')
@@ -50,6 +51,7 @@ function SeasonsPage() {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: seasonsQueryKey })
       setName('')
+      setVoterRequired(false)
       setRegistrationStartDate('')
       setRegistrationEndDate('')
       setStartDate('')
@@ -71,6 +73,14 @@ function SeasonsPage() {
       message: getErrorMessage(error),
     }),
   })
+  const voterRuleMutation = useMutation({
+    mutationFn: ({ season, required }: { season: Season; required: boolean }) => updateSeasonVoterRule(season.id, required),
+    onSuccess: async () => {
+      setTransitionError(null)
+      await queryClient.invalidateQueries({ queryKey: seasonsQueryKey })
+    },
+    onError: (error: unknown, variables) => setTransitionError({ seasonId: variables.season.id, message: getErrorMessage(error) }),
+  })
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -79,6 +89,7 @@ function SeasonsPage() {
     const payload: CreateSeasonPayload = {
       name: name.trim(),
       year: Number(year),
+      voter_required: voterRequired,
       registration_start_date: registrationStartDate || null,
       registration_end_date: registrationEndDate || null,
       start_date: startDate || null,
@@ -106,6 +117,10 @@ function SeasonsPage() {
             <label style={{ display: 'grid', gap: '0.35rem' }}>
               Year
               <input required type="number" min="1" step="1" value={year} onChange={(event) => setYear(event.target.value)} />
+            </label>
+            <label>
+              <input type="checkbox" checked={voterRequired} onChange={(event) => setVoterRequired(event.target.checked)} />
+              Require voter verification for adults
             </label>
             <label style={{ display: 'grid', gap: '0.35rem' }}>
               Registration starts
@@ -147,7 +162,8 @@ function SeasonsPage() {
                   <th style={{ padding: '0.75rem' }}>Registration</th>
                   <th style={{ padding: '0.75rem' }}>Competition</th>
                   <th style={{ padding: '0.75rem' }}>Status</th>
-                  <th style={{ padding: '0.75rem' }}>Configuration</th>
+                  <th style={{ padding: '0.75rem' }}>Voter rule</th>
+                  <th style={{ padding: '0.75rem' }}>Season workspace</th>
                   {currentUser?.role === 'Administrator' ? <th style={{ padding: '0.75rem' }}>Action</th> : null}
                 </tr>
               </thead>
@@ -159,7 +175,13 @@ function SeasonsPage() {
                     <td style={{ padding: '0.75rem' }}>{season.start_date ?? 'Not set'} to {season.end_date ?? 'Not set'}</td>
                     <td style={{ padding: '0.75rem' }}>{season.season_status}</td>
                     <td style={{ padding: '0.75rem' }}>
-                      <Link to={`/seasons/${season.id}/configuration`}>View configuration</Link>
+                      {currentUser?.role === 'Administrator' && season.season_status === 'PLANNING' ? (
+                        <label><input type="checkbox" checked={season.voter_required} disabled={voterRuleMutation.isPending || transitionMutation.isPending}
+                          onChange={(event) => voterRuleMutation.mutate({ season, required: event.target.checked })} /> Required for adults</label>
+                      ) : season.voter_required ? 'Required for adults' : 'Not required'}
+                    </td>
+                    <td style={{ padding: '0.75rem' }}>
+                      <Link to={`/seasons/${season.id}/configuration`}>Open season</Link>
                     </td>
                     {currentUser?.role === 'Administrator' ? (
                       <td style={{ padding: '0.75rem' }}>

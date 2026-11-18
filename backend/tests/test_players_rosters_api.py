@@ -5,6 +5,7 @@ from sqlalchemy import event
 from sqlalchemy.exc import IntegrityError
 
 from app import create_app
+from app.application.players.services import PlayerService
 from app.application.rosters.policies import RosterPolicy
 from app.application.rosters.services import RosterService
 from app.domain.models.players import Player
@@ -18,6 +19,7 @@ from app.domain.models.season_teams import SeasonTeam
 from app.domain.models.users import User
 from app.extensions import db
 from app.infrastructure.database.roster_repository import RosterRepository
+from app.infrastructure.database.player_repository import PlayerRepository
 
 
 @pytest.fixture()
@@ -42,13 +44,14 @@ def login(client):
     return client.post("/api/v1/auth/login", json={"username": "admin", "password": "admin-pass-123"})
 
 
-def create_registration_team(client):
+def create_registration_team(client, *, voter_required=False):
     today = date.today()
     season_response = client.post(
         "/api/v1/seasons/",
         json={
             "name": "Roster Season",
             "year": today.year,
+            "voter_required": voter_required,
             "registration_start_date": today.isoformat(),
             "registration_end_date": today.isoformat(),
         },
@@ -125,6 +128,67 @@ def test_duplicate_player_identity_is_rejected(client):
 
     assert response.status_code == 409
     assert Player.query.count() == 1
+
+
+def test_player_responses_match_persisted_profiles(client):
+    login(client)
+    created = client.post("/api/v1/players/", json=player_payload()).get_json()["data"]
+    player_id = created["id"]
+    assert created == db.session.get(Player, player_id).to_dict()
+
+    updated = client.put(
+        f"/api/v1/players/{player_id}", json=player_payload(first_name="Alexis")
+    ).get_json()["data"]
+    assert updated == db.session.get(Player, player_id).to_dict()
+    archived = client.delete(f"/api/v1/players/{player_id}").get_json()["data"]
+    assert archived == db.session.get(Player, player_id).to_dict()
+    assert client.get(f"/api/v1/players/{player_id}").get_json()["data"] == archived
+    assert client.get("/api/v1/players/?include_archived=true").get_json()["data"] == [archived]
+
+
+def test_player_create_rolls_back_after_database_conflict(client, monkeypatch):
+    login(client)
+    original_create = PlayerRepository.create
+
+    def fail_after_flush(self, values):
+        original_create(self, values)
+        raise IntegrityError("insert player", {}, Exception("simulated conflict"))
+
+    monkeypatch.setattr(PlayerRepository, "create", fail_after_flush)
+    response = client.post("/api/v1/players/", json=player_payload())
+
+    assert response.status_code == 409
+    assert Player.query.count() == 0
+
+
+def test_player_update_rolls_back_unexpected_write_error(client, monkeypatch):
+    login(client)
+    player_id = client.post("/api/v1/players/", json=player_payload()).get_json()["data"]["id"]
+    original_update = PlayerRepository.update
+
+    def fail_after_flush(self, player_id, values):
+        original_update(self, player_id, values)
+        raise RuntimeError("simulated write failure")
+
+    monkeypatch.setattr(PlayerRepository, "update", fail_after_flush)
+    with pytest.raises(RuntimeError, match="simulated write failure"):
+        PlayerService().update_player(
+            player_id, first_name="Changed", middle_name=None, last_name="Rivera",
+            birthdate=date(2010, 3, 10), gender="MALE", address="Puting Kahoy",
+        )
+
+    assert db.session.get(Player, player_id).first_name == "Alex"
+
+
+def test_unchanged_player_archive_state_does_not_commit(client, monkeypatch):
+    login(client)
+    player_id = client.post("/api/v1/players/", json=player_payload()).get_json()["data"]["id"]
+
+    def fail_if_committed():
+        raise AssertionError("An unchanged archive state must not commit.")
+
+    monkeypatch.setattr(db.session, "commit", fail_if_committed)
+    assert PlayerService().set_archived(player_id, False, actor_id=1)["is_archived"] is False
 
 
 def test_team_can_be_updated_and_archived(client):
@@ -225,11 +289,12 @@ def test_archived_team_rejects_roster_updates_and_removals(client):
 
 def test_adult_roster_player_requires_voter_verification(client):
     login(client)
-    _, _, team_id = create_registration_team(client)
+    _, _, team_id = create_registration_team(client, voter_required=True)
     adult = client.post(
         "/api/v1/players/",
         json=player_payload(first_name="Adult", birthdate="1990-01-01"),
     ).get_json()["data"]
+    PlayerService().save_voter_id(adult["id"], date.today().year, "VOTER-123")
     roster_url = f"/api/v1/season-teams/{team_id}/roster"
 
     rejected = client.post(roster_url, json={"player_id": adult["id"], "jersey_number": "8"})
@@ -241,7 +306,6 @@ def test_adult_roster_player_requires_voter_verification(client):
             "player_id": adult["id"],
             "jersey_number": "8",
             "voter_verified": True,
-            "voter_number": "VOTER-123",
         },
     )
     assert accepted.status_code == 201
@@ -250,14 +314,93 @@ def test_adult_roster_player_requires_voter_verification(client):
     assert eligibility.voter_number == "VOTER-123"
 
 
+def test_voter_id_uniqueness_is_scoped_to_year_and_admin_only(client):
+    login(client)
+    year = date.today().year
+    first = client.post("/api/v1/players/", json={
+        **player_payload(first_name="First"), "voter_year": year, "voter_number": "  ID-123  ",
+    })
+    second = client.post("/api/v1/players/", json=player_payload(first_name="Second"))
+    first_id = first.get_json()["data"]["id"]
+    second_id = second.get_json()["data"]["id"]
+    url = f"/api/v1/players/{second_id}/voter-ids"
+    assert client.put(url, json={"year": year, "voter_number": "id-123"}).status_code == 409
+    assert client.put(url, json={"year": year + 1, "voter_number": "ID-123"}).status_code == 200
+    assert client.get(f"/api/v1/players/{first_id}/voter-ids").get_json()["data"] == [
+        {"year": year, "voter_number": "ID-123"},
+    ]
+    client.post("/api/v1/auth/logout")
+    assert client.get(url).status_code == 401
+
+
+def test_voter_rule_reuses_verification_across_sports_and_rechecks_after_change(client):
+    login(client)
+    season_id, _, team_id = create_registration_team(client, voter_required=True)
+    season = db.session.get(Season, season_id)
+    adult = client.post("/api/v1/players/", json=player_payload(first_name="Adult", birthdate="1990-01-01")).get_json()["data"]
+    pid = adult["id"]
+    roster = f"/api/v1/season-teams/{team_id}/roster"
+    assert client.post(roster, json={"player_id": pid, "jersey_number": "1", "voter_verified": True}).status_code == 400
+    assert client.put(f"/api/v1/players/{pid}/voter-ids", json={"year": season.year, "voter_number": "ID-A"}).status_code == 200
+    assert client.post(roster, json={"player_id": pid, "jersey_number": "1"}).status_code == 400
+    assert client.post(roster, json={"player_id": pid, "jersey_number": "1", "voter_verified": True}).status_code == 201
+    sport = SeasonSport(season_id=season_id, name="Volleyball")
+    db.session.add(sport)
+    db.session.flush()
+    division = SeasonSportDivision(season_sport_id=sport.id, name="Open", gender_policy="ANY", minimum_roster_size=1, maximum_roster_size=10)
+    db.session.add(division)
+    db.session.flush()
+    team = SeasonTeam(season_sport_division_id=division.id, name="Second", barangay="Demo")
+    db.session.add(team)
+    db.session.commit()
+    url = f"/api/v1/season-teams/{team.id}/roster"
+    assert client.post(url, json={"player_id": pid, "jersey_number": "1"}).status_code == 201
+    assert client.put(f"/api/v1/players/{pid}/voter-ids", json={"year": season.year, "voter_number": "ID-B"}).status_code == 200
+    status_url = f"/api/v1/season-teams/{team.id}/players/{pid}/voter-status"
+    assert client.get(status_url).get_json()["data"]["verified"] is False
+    response = client.patch(f"/api/v1/seasons/{season_id}/status", json={"season_status": "ONGOING"})
+    assert response.status_code == 409
+    assert "voter verification" in response.get_json()["message"]
+    assert client.post(f"/api/v1/season-teams/{team.id}/players/{pid}/verify-voter").status_code == 200
+    assert client.get(status_url).get_json()["data"]["verified"] is True
+    assert SeasonPlayerEligibility.query.filter_by(season_id=season_id, player_id=pid).one().voter_number == "ID-B"
+
+
+def test_non_strict_season_allows_adult_without_voter_id(client):
+    login(client)
+    _, _, team_id = create_registration_team(client)
+    adult = client.post("/api/v1/players/", json=player_payload(first_name="Adult", birthdate="1990-01-01")).get_json()["data"]
+    assert client.post(f"/api/v1/season-teams/{team_id}/roster", json={"player_id": adult["id"], "jersey_number": "1"}).status_code == 201
+    assert SeasonPlayerEligibility.query.count() == 0
+
+
+def test_strict_season_allows_minor_without_voter_id(client):
+    login(client)
+    _, _, team_id = create_registration_team(client, voter_required=True)
+    minor = client.post("/api/v1/players/", json=player_payload(birthdate=date.today().isoformat())).get_json()["data"]
+    assert client.post(f"/api/v1/season-teams/{team_id}/roster", json={"player_id": minor["id"], "jersey_number": "1"}).status_code == 201
+    assert SeasonPlayerEligibility.query.count() == 0
+
+
+def test_voter_rule_is_editable_only_in_planning(client):
+    login(client)
+    season = client.post("/api/v1/seasons/", json={"name": "Rules", "year": date.today().year}).get_json()["data"]
+    url = f"/api/v1/seasons/{season['id']}/voter-rule"
+    assert season["voter_required"] is False
+    assert client.patch(url, json={"voter_required": True}).get_json()["data"]["voter_required"] is True
+    assert client.patch(f"/api/v1/seasons/{season['id']}/status", json={"season_status": "REGISTRATION"}).status_code == 200
+    assert client.patch(url, json={"voter_required": False}).status_code == 400
+
+
 @pytest.mark.parametrize("existing_eligibility", [False, True])
 def test_roster_and_adult_eligibility_roll_back_together_on_conflict(client, monkeypatch, existing_eligibility):
     login(client)
-    season_id, _, team_id = create_registration_team(client)
+    season_id, _, team_id = create_registration_team(client, voter_required=True)
     adult = client.post(
         "/api/v1/players/",
         json=player_payload(first_name="Adult", birthdate="1990-01-01"),
     ).get_json()["data"]
+    PlayerService().save_voter_id(adult["id"], date.today().year, "NEW")
     if existing_eligibility:
         db.session.add(SeasonPlayerEligibility(
             season_id=season_id, player_id=adult["id"], is_voter_verified=False,
@@ -276,7 +419,7 @@ def test_roster_and_adult_eligibility_roll_back_together_on_conflict(client, mon
         f"/api/v1/season-teams/{team_id}/roster",
         json={
             "player_id": adult["id"], "jersey_number": "8",
-            "voter_verified": True, "voter_number": "NEW", "eligibility_notes": "New note",
+            "voter_verified": True, "eligibility_notes": "New note",
         },
     )
     assert response.status_code == 409
@@ -293,11 +436,12 @@ def test_roster_and_adult_eligibility_roll_back_together_on_conflict(client, mon
 
 def test_roster_rolls_back_unexpected_write_errors(client, monkeypatch):
     login(client)
-    _, _, team_id = create_registration_team(client)
+    _, _, team_id = create_registration_team(client, voter_required=True)
     adult = client.post(
         "/api/v1/players/",
         json=player_payload(first_name="Adult", birthdate="1990-01-01"),
     ).get_json()["data"]
+    PlayerService().save_voter_id(adult["id"], date.today().year, "NEW")
     original_add = RosterRepository.add_roster
 
     def fail_after_flush(repository, team_id, player_id, jersey_number):
@@ -309,7 +453,7 @@ def test_roster_rolls_back_unexpected_write_errors(client, monkeypatch):
     with pytest.raises(RuntimeError, match="unexpected failure"):
         RosterService().add_player(
             team_id, player_id=adult["id"], jersey_number="8", actor_id=admin_id,
-            voter_verified=True, voter_number="NEW",
+            voter_verified=True,
         )
     assert Roster.query.count() == 0
     assert SeasonPlayerEligibility.query.count() == 0
@@ -317,11 +461,12 @@ def test_roster_rolls_back_unexpected_write_errors(client, monkeypatch):
 
 def test_roster_and_eligibility_roll_back_when_commit_fails(client, monkeypatch):
     login(client)
-    _, _, team_id = create_registration_team(client)
+    _, _, team_id = create_registration_team(client, voter_required=True)
     adult = client.post(
         "/api/v1/players/",
         json=player_payload(first_name="Adult", birthdate="1990-01-01"),
     ).get_json()["data"]
+    PlayerService().save_voter_id(adult["id"], date.today().year, "NEW")
     admin_id = User.query.filter_by(username="admin").one().id
 
     def fail_commit():
@@ -332,7 +477,7 @@ def test_roster_and_eligibility_roll_back_when_commit_fails(client, monkeypatch)
         with pytest.raises(ValueError, match="Roster player or jersey number conflicts"):
             RosterService().add_player(
                 team_id, player_id=adult["id"], jersey_number="8", actor_id=admin_id,
-                voter_verified=True, voter_number="NEW",
+                voter_verified=True,
             )
     assert Roster.query.count() == 0
     assert SeasonPlayerEligibility.query.count() == 0
@@ -340,11 +485,12 @@ def test_roster_and_eligibility_roll_back_when_commit_fails(client, monkeypatch)
 
 def test_adult_roster_add_commits_both_writes_once(client):
     login(client)
-    _, _, team_id = create_registration_team(client)
+    _, _, team_id = create_registration_team(client, voter_required=True)
     adult = client.post(
         "/api/v1/players/",
         json=player_payload(first_name="Adult", birthdate="1990-01-01"),
     ).get_json()["data"]
+    PlayerService().save_voter_id(adult["id"], date.today().year, "NEW")
     admin_id = User.query.filter_by(username="admin").one().id
     commits = []
 
@@ -356,7 +502,7 @@ def test_adult_roster_add_commits_both_writes_once(client):
     try:
         RosterService().add_player(
             team_id, player_id=adult["id"], jersey_number="8", actor_id=admin_id,
-            voter_verified=True, voter_number="NEW",
+            voter_verified=True,
         )
     finally:
         event.remove(session, "after_commit", record_commit)
@@ -365,37 +511,37 @@ def test_adult_roster_add_commits_both_writes_once(client):
     assert SeasonPlayerEligibility.query.count() == 1
 
 
-def test_adult_verification_is_required_again_after_removal(client):
+def test_adult_verification_is_reused_after_removal(client):
     login(client)
-    _, _, team_id = create_registration_team(client)
+    _, _, team_id = create_registration_team(client, voter_required=True)
     adult = client.post(
         "/api/v1/players/",
         json=player_payload(first_name="Adult", birthdate="1990-01-01"),
     ).get_json()["data"]
+    PlayerService().save_voter_id(adult["id"], date.today().year, "VOTER-123")
     roster_url = f"/api/v1/season-teams/{team_id}/roster"
     payload = {
         "player_id": adult["id"], "jersey_number": "8",
-        "voter_verified": True, "voter_number": "  VOTER-123  ",
+        "voter_verified": True,
     }
     added = client.post(roster_url, json=payload)
     assert added.status_code == 201
     assert SeasonPlayerEligibility.query.one().voter_number == "VOTER-123"
     assert client.delete(f"{roster_url}/{added.get_json()['data']['id']}").status_code == 200
 
-    rejected = client.post(roster_url, json={"player_id": adult["id"], "jersey_number": "8"})
-    assert rejected.status_code == 400
-    assert Roster.query.count() == 0
-    assert client.post(roster_url, json=payload).status_code == 201
+    reused = client.post(roster_url, json={"player_id": adult["id"], "jersey_number": "8"})
+    assert reused.status_code == 201
     assert SeasonPlayerEligibility.query.count() == 1
 
 
 def test_adult_reverification_preserves_existing_notes_when_blank(client):
     login(client)
-    season_id, _, team_id = create_registration_team(client)
+    season_id, _, team_id = create_registration_team(client, voter_required=True)
     adult = client.post(
         "/api/v1/players/",
         json=player_payload(first_name="Adult", birthdate="1990-01-01"),
     ).get_json()["data"]
+    PlayerService().save_voter_id(adult["id"], date.today().year, "NEW")
     db.session.add(SeasonPlayerEligibility(
         season_id=season_id, player_id=adult["id"], is_voter_verified=False,
         voter_number="OLD", notes="Keep this note",
@@ -405,7 +551,7 @@ def test_adult_reverification_preserves_existing_notes_when_blank(client):
         f"/api/v1/season-teams/{team_id}/roster",
         json={
             "player_id": adult["id"], "jersey_number": "8", "voter_verified": True,
-            "voter_number": "  NEW  ", "eligibility_notes": "   ",
+            "eligibility_notes": "   ",
         },
     )
     assert response.status_code == 201

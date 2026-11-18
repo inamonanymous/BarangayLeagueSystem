@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { AxiosError } from 'axios'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createPlayer, getPlayers, setPlayerArchived, updatePlayer, type Player } from '../../shared/api/seasons'
+import { createPlayer, getPlayers, getPlayerVoterIds, savePlayerVoterId, setPlayerArchived, updatePlayer, type Player } from '../../shared/api/seasons'
 import { useCurrentUser } from '../auth/useCurrentUser'
 
 interface ApiErrorResponse {
@@ -19,6 +19,39 @@ function errorMessage(error: unknown): string {
   return 'Could not complete the request.'
 }
 
+function VoterIds({ player }: { player: Player }) {
+  const queryClient = useQueryClient()
+  const [year, setYear] = useState(String(new Date().getFullYear()))
+  const [number, setNumber] = useState('')
+  const [error, setError] = useState('')
+  const query = useQuery({ queryKey: ['player-voter-ids', player.id], queryFn: () => getPlayerVoterIds(player.id) })
+  const save = useMutation({
+    mutationFn: () => savePlayerVoterId(player.id, { year: Number(year), voter_number: number.trim() }),
+    onSuccess: async () => {
+      setNumber('')
+      setError('')
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['player-voter-ids', player.id] }),
+        queryClient.invalidateQueries({ queryKey: ['voter-status'] }),
+      ])
+    },
+    onError: (caught) => setError(errorMessage(caught)),
+  })
+  return <section>
+    <h3>Voter IDs for {player.first_name} {player.last_name}</h3>
+    <p>IDs are used for seasons with the same year. Changing an ID requires verification again.</p>
+    {query.isPending ? <p>Loading voter IDs...</p> : null}
+    {query.isError ? <p role="alert">{errorMessage(query.error)}</p> : null}
+    {query.data ? query.data.length ? <ul>{query.data.map((entry) => <li key={entry.year}>{entry.year}: {entry.voter_number}</li>)}</ul> : <p>No voter IDs recorded.</p> : null}
+    {!player.is_archived ? <form onSubmit={(event) => { event.preventDefault(); save.mutate() }}>
+      <label>Season year <input required type="number" min="1" max="2147483647" step="1" value={year} onChange={(event) => setYear(event.target.value)} /></label>
+      <label>Voter ID <input required maxLength={100} value={number} onChange={(event) => setNumber(event.target.value)} /></label>
+      <button type="submit" disabled={save.isPending}>Save voter ID</button>
+    </form> : null}
+    {error ? <p role="alert">{error}</p> : null}
+  </section>
+}
+
 function PlayersPage() {
   const queryClient = useQueryClient()
   const { data: currentUser, isPending: userPending } = useCurrentUser()
@@ -30,6 +63,9 @@ function PlayersPage() {
   const [gender, setGender] = useState('')
   const [address, setAddress] = useState('')
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null)
+  const [voterPlayer, setVoterPlayer] = useState<Player | null>(null)
+  const [voterYear, setVoterYear] = useState(String(new Date().getFullYear()))
+  const [voterNumber, setVoterNumber] = useState('')
   const [error, setError] = useState('')
   const isAdmin = currentUser?.role === 'Administrator'
   const queryKey = ['players', includeArchived] as const
@@ -55,6 +91,7 @@ function PlayersPage() {
       birthdate,
       gender: gender.trim(),
       address: address.trim(),
+      ...(voterNumber.trim() ? { voter_year: Number(voterYear), voter_number: voterNumber.trim() } : {}),
     }),
     onSuccess: async () => {
       setFirstName('')
@@ -63,6 +100,7 @@ function PlayersPage() {
       setBirthdate('')
       setGender('')
       setAddress('')
+      setVoterNumber('')
       setError('')
       await refreshPlayers()
     },
@@ -89,6 +127,7 @@ function PlayersPage() {
       setPlayerArchived(playerId, archived),
     onSuccess: async () => {
       setError('')
+      setVoterPlayer(null)
       await refreshPlayers(true)
     },
     onError: (caught) => setError(errorMessage(caught)),
@@ -123,6 +162,12 @@ function PlayersPage() {
         </label>
         <label style={{ display: 'grid', gap: '0.25rem', gridColumn: '1 / -1' }}>Address
           <input required maxLength={1000} value={address} onChange={(event) => setAddress(event.target.value)} />
+        </label>
+        <label style={{ display: 'grid', gap: '0.25rem' }}>Voter ID (optional)
+          <input maxLength={100} value={voterNumber} onChange={(event) => setVoterNumber(event.target.value)} />
+        </label>
+        <label style={{ display: 'grid', gap: '0.25rem' }}>Voter ID season year
+          <input type="number" min="1" max="2147483647" step="1" required={Boolean(voterNumber.trim())} value={voterYear} onChange={(event) => setVoterYear(event.target.value)} />
         </label>
         <button type="submit" disabled={createMutation.isPending}>{createMutation.isPending ? 'Saving...' : 'Create player'}</button>
       </form>
@@ -165,6 +210,7 @@ function PlayersPage() {
                   ) : (
                     <div style={{ display: 'flex', gap: '0.4rem' }}>
                       <button type="button" disabled={player.is_archived} onClick={() => setEditingPlayer(player)}>Edit</button>
+                      <button type="button" onClick={() => setVoterPlayer(player)}>Voter IDs</button>
                       <button type="button" disabled={archiveMutation.isPending} onClick={() => archiveMutation.mutate({ playerId: player.id, archived: !player.is_archived })}>{player.is_archived ? 'Restore' : 'Archive'}</button>
                     </div>
                   )}
@@ -174,6 +220,7 @@ function PlayersPage() {
           </table>
         </div>
       ) : null}
+      {voterPlayer ? <VoterIds key={voterPlayer.id} player={voterPlayer} /> : null}
     </div>
   )
 }

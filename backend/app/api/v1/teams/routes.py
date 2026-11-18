@@ -143,7 +143,6 @@ def add_roster_player(team_id: int):
             player_id=data["player_id"],
             jersey_number=data["jersey_number"],
             voter_verified=data.get("voter_verified", False),
-            voter_number=data.get("voter_number"),
             eligibility_notes=data.get("eligibility_notes"),
         )
     except ValidationError as exc:
@@ -155,6 +154,30 @@ def add_roster_player(team_id: int):
     except ValueError as exc:
         return error_response(str(exc), status_code=400)
     return success_response("Player added to roster.", roster, status_code=201)
+
+
+@teams_bp.get("/season-teams/<int:team_id>/players/<int:player_id>/voter-status")
+@admin_required
+def roster_voter_status(team_id: int, player_id: int):
+    try:
+        data = RosterService().voter_status(team_id, player_id)
+    except LookupError as exc:
+        return error_response(str(exc), status_code=404)
+    except ValueError as exc:
+        return error_response(str(exc), status_code=400)
+    return success_response("Voter status retrieved.", data)
+
+
+@teams_bp.post("/season-teams/<int:team_id>/players/<int:player_id>/verify-voter")
+@admin_required
+def verify_rostered_voter(team_id: int, player_id: int):
+    try:
+        RosterService().verify_rostered_player(team_id, player_id, session["user_id"])
+    except LookupError as exc:
+        return error_response(str(exc), status_code=404)
+    except ValueError as exc:
+        return error_response(str(exc), status_code=400)
+    return success_response("Voter eligibility verified.")
 
 
 @teams_bp.put("/season-teams/<int:team_id>/roster/<int:roster_id>")

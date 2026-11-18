@@ -11,6 +11,7 @@ interface SeasonTeamsSectionProps {
   divisionAssignmentId: number
   minimumRosterSize: number
   seasonStatus: SeasonStatus
+  voterRequired: boolean
   registrationStartDate: string | null
   registrationEndDate: string | null
   isAdmin: boolean
@@ -43,6 +44,7 @@ function SeasonTeamsSection({
   divisionAssignmentId,
   minimumRosterSize,
   seasonStatus,
+  voterRequired,
   registrationStartDate,
   registrationEndDate,
   isAdmin,
@@ -132,7 +134,7 @@ function SeasonTeamsSection({
   return (
     <section style={{ marginTop: '0.85rem', paddingTop: '0.75rem', borderTop: '1px solid #e2e8f0' }}>
       <h5 style={{ margin: '0 0 0.5rem' }}>
-        Step 2: Register teams{teamsQuery.data
+        Teams{teamsQuery.data
           ? ` (${teamsQuery.data.filter((team) => !team.is_archived).length} active)`
           : ''}
       </h5>
@@ -257,6 +259,7 @@ function SeasonTeamsSection({
                   teamArchived={team.is_archived}
                   minimumRosterSize={minimumRosterSize}
                   seasonStatus={seasonStatus}
+                  voterRequired={voterRequired}
                   registrationStartDate={registrationStartDate}
                   registrationEndDate={registrationEndDate}
                   isAdmin={isAdmin}

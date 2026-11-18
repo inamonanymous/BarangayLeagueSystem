@@ -6,6 +6,7 @@ class Season(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(150), nullable=False, unique=True)
     year = db.Column(db.Integer, nullable=False)
+    voter_required = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
     registration_start_date = db.Column(db.Date, nullable=True)
     registration_end_date = db.Column(db.Date, nullable=True)
     start_date = db.Column(db.Date, nullable=True)
@@ -19,6 +20,7 @@ class Season(db.Model):
             "id": self.id,
             "name": self.name,
             "year": self.year,
+            "voter_required": self.voter_required,
             "registration_start_date": self.registration_start_date.isoformat() if self.registration_start_date else None,
             "registration_end_date": self.registration_end_date.isoformat() if self.registration_end_date else None,
             "start_date": self.start_date.isoformat() if self.start_date else None,

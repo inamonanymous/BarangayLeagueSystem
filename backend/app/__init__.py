@@ -11,6 +11,7 @@ from app.domain.models.season_sports import SeasonSport
 from app.domain.models.season_sport_divisions import SeasonSportDivision
 from app.domain.models.season_teams import SeasonTeam
 from app.domain.models.players import Player
+from app.domain.models.player_voter_ids import PlayerVoterId
 from app.domain.models.rosters import Roster
 from app.domain.models.season_player_eligibilities import SeasonPlayerEligibility
 from app.domain.models.users import User

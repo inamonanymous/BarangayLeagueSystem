@@ -7,11 +7,12 @@ from app.application.season.policies import SeasonConflictError
 from app.application.season.services import SeasonService
 from app.application.catalogs.services import CatalogConflictError, CatalogService
 from app.schemas.catalog_schema import CreateDivisionSchema, CreateSportSchema
-from app.schemas.season_schema import CreateSeasonSchema, TransitionSeasonSchema
+from app.schemas.season_schema import CreateSeasonSchema, TransitionSeasonSchema, VoterRuleSchema
 
 seasons_bp = Blueprint("seasons", __name__, url_prefix="/seasons")
 create_season_schema = CreateSeasonSchema()
 transition_season_schema = TransitionSeasonSchema()
+voter_rule_schema = VoterRuleSchema()
 add_sport_schema = CreateSportSchema()
 add_division_schema = CreateDivisionSchema()
 
@@ -79,6 +80,24 @@ def transition_season(season_id: int):
         message="Season status updated.",
         data=season.to_dict(),
     )
+
+
+@seasons_bp.patch("/<int:season_id>/voter-rule")
+@admin_required
+def update_voter_rule(season_id: int):
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return error_response("A JSON request body is required.", status_code=400)
+    try:
+        data = voter_rule_schema.load(payload)
+        season = SeasonService().update_voter_rule(season_id, data["voter_required"])
+    except ValidationError as exc:
+        return error_response("Validation failed.", status_code=400, errors=exc.messages)
+    except LookupError as exc:
+        return error_response(str(exc), status_code=404)
+    except ValueError as exc:
+        return error_response(str(exc), status_code=400)
+    return success_response("Voter rule updated.", season.to_dict())
 
 
 @seasons_bp.get("/<int:season_id>/configuration")

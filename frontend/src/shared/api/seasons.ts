@@ -6,6 +6,7 @@ export interface Season {
   id: number
   name: string
   year: number
+  voter_required: boolean
   registration_start_date: string | null
   registration_end_date: string | null
   start_date: string | null
@@ -18,6 +19,7 @@ export interface Season {
 export interface CreateSeasonPayload {
   name: string
   year: number
+  voter_required: boolean
   registration_start_date: string | null
   registration_end_date: string | null
   start_date: string | null
@@ -48,6 +50,11 @@ export async function createSeason(payload: CreateSeasonPayload): Promise<Season
 
 export async function transitionSeason(seasonId: number, season_status: SeasonStatus): Promise<Season> {
   const response = await api.patch<ApiResponse<Season>>(`/seasons/${seasonId}/status`, { season_status })
+  return response.data.data
+}
+
+export async function updateSeasonVoterRule(seasonId: number, voter_required: boolean): Promise<Season> {
+  const response = await api.patch<ApiResponse<Season>>(`/seasons/${seasonId}/voter-rule`, { voter_required })
   return response.data.data
 }
 
@@ -328,9 +335,39 @@ export async function getAvailablePlayers(teamId: number): Promise<Player[]> {
   return response.data.data
 }
 
-export async function createPlayer(payload: Omit<Player, 'id' | 'is_archived'>): Promise<Player> {
+export async function createPlayer(payload: Omit<Player, 'id' | 'is_archived'> & { voter_year?: number; voter_number?: string }): Promise<Player> {
   const response = await api.post<ApiResponse<Player>>('/players/', payload)
   return response.data.data
+}
+
+export interface PlayerVoterId {
+  year: number
+  voter_number: string
+}
+
+export async function getPlayerVoterIds(playerId: number): Promise<PlayerVoterId[]> {
+  const response = await api.get<ApiResponse<PlayerVoterId[]>>(`/players/${playerId}/voter-ids`)
+  return response.data.data
+}
+
+export async function savePlayerVoterId(playerId: number, payload: PlayerVoterId): Promise<void> {
+  await api.put(`/players/${playerId}/voter-ids`, payload)
+}
+
+export interface VoterStatus {
+  required: boolean
+  has_voter_id: boolean
+  verified: boolean
+  year: number
+}
+
+export async function getVoterStatus(teamId: number, playerId: number): Promise<VoterStatus> {
+  const response = await api.get<ApiResponse<VoterStatus>>(`/season-teams/${teamId}/players/${playerId}/voter-status`)
+  return response.data.data
+}
+
+export async function verifyRosterVoter(teamId: number, playerId: number): Promise<void> {
+  await api.post(`/season-teams/${teamId}/players/${playerId}/verify-voter`)
 }
 
 export async function updatePlayer(playerId: number, payload: Omit<Player, 'id' | 'is_archived'>): Promise<Player> {
@@ -352,7 +389,6 @@ export async function addPlayerToRoster(teamId: number, payload: {
   player_id: number
   jersey_number: string
   voter_verified: boolean
-  voter_number: string | null
   eligibility_notes: string | null
 }): Promise<RosterEntry> {
   const response = await api.post<ApiResponse<RosterEntry>>(`/season-teams/${teamId}/roster`, payload)

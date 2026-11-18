@@ -1,13 +1,17 @@
 from sqlalchemy import and_, func
+from datetime import date
 
 from app.application.common.utils.base_classes import BaseRepository
 from app.domain.models.players import Player
+from app.domain.models.player_voter_ids import PlayerVoterId
 from app.domain.models.rosters import Roster
+from app.domain.models.season_player_eligibilities import SeasonPlayerEligibility
 from app.domain.models.seasons import Season
 from app.domain.models.season_sport_divisions import SeasonSportDivision
 from app.domain.models.season_sports import SeasonSport
 from app.domain.models.season_teams import SeasonTeam
 from app.extensions import db
+from app.application.rosters.policies import RosterPolicy
 
 
 class SeasonRepository(BaseRepository):
@@ -16,6 +20,9 @@ class SeasonRepository(BaseRepository):
 
     def get_by_id(self, season_id: int) -> Season | None:
         return db.session.get(Season, season_id)
+
+    def get_for_update(self, season_id: int) -> Season | None:
+        return Season.query.filter_by(id=season_id).populate_existing().with_for_update().first()
 
     def exists_by_name(self, name: str) -> bool:
         return Season.query.filter_by(name=name).first() is not None
@@ -27,6 +34,27 @@ class SeasonRepository(BaseRepository):
         if exclude_id is not None:
             query = query.filter(Season.id != exclude_id)
         return query.first() is not None
+
+    def count_unverified_adults(self, season_id: int, year: int, today: date) -> int:
+        rows = (
+            db.session.query(Player, PlayerVoterId, SeasonPlayerEligibility)
+            .join(Roster, Roster.player_id == Player.id)
+            .join(SeasonTeam, SeasonTeam.id == Roster.season_team_id)
+            .join(SeasonSportDivision, SeasonSportDivision.id == SeasonTeam.season_sport_division_id)
+            .join(SeasonSport, SeasonSport.id == SeasonSportDivision.season_sport_id)
+            .outerjoin(PlayerVoterId, and_(PlayerVoterId.player_id == Player.id, PlayerVoterId.year == year))
+            .outerjoin(SeasonPlayerEligibility, and_(
+                SeasonPlayerEligibility.player_id == Player.id, SeasonPlayerEligibility.season_id == season_id,
+            ))
+            .filter(SeasonSport.season_id == season_id, SeasonTeam.is_archived.is_(False), Player.is_archived.is_(False))
+            .all()
+        )
+        return len({
+            player.id for player, voter, eligibility in rows
+            if RosterPolicy.is_adult(player.birthdate, today)
+            and (voter is None or eligibility is None or not eligibility.is_voter_verified
+                 or eligibility.voter_number != voter.voter_number)
+        })
 
     def list_teams_below_minimum_roster_size(self, season_id: int) -> list[dict]:
         active_player_count = func.count(Player.id)

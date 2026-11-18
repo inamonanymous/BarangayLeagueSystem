@@ -302,7 +302,7 @@ convenience: the add-player service checks the rules again on submission.
 
 ```mermaid
 flowchart TD
-    A["Administrator submits player, jersey, and voter details"] --> B["Route checks administrator and validates JSON"]
+    A["Administrator submits player, jersey, and verification if needed"] --> B["Route checks administrator and validates JSON"]
     B --> C{"Team active and Registration window open?"}
     C -->|"No"| X["Reject"]
     C -->|"Yes"| D{"Player exists and profile is active?"}
@@ -312,8 +312,8 @@ flowchart TD
     F -->|"Yes"| X
     F -->|"No"| G{"Jersey already used or roster at maximum?"}
     G -->|"Yes"| X
-    G -->|"No"| H{"Player is 18 or older today?"}
-    H -->|"Yes"| I{"Voter verified and voter number supplied?"}
+    G -->|"No"| H{"Strict season and player is 18 or older today?"}
+    H -->|"Yes"| I{"Saved ID for season year and verified for season?"}
     I -->|"No"| X
     I -->|"Yes"| J["Create or update season eligibility record"]
     H -->|"No"| K["Create roster link"]
@@ -323,8 +323,9 @@ flowchart TD
 ```
 
 Adult verification is entered by the administrator; there is no independent
-voter-registration lookup. The service requires the verification checkbox and
-number on each adult add request, even if an eligibility record already exists.
+voter-registration lookup. In strict seasons, the saved year-specific voter ID
+is verified once per player per season and reused across sports. Changing the ID
+requires re-verification. Existing seasons default to non-strict after migration.
 Age and registration-window checks use the server's current date.
 The [roster service](../../backend/app/application/rosters/services.py) obtains
 records and coordinates persistence, while the

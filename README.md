@@ -8,10 +8,12 @@ A work-in-progress league management application for organizing seasons, sports,
 - Season lifecycle, sport and division catalogs, and season configuration.
 - Team registration and management, player profiles, and team rosters.
 - A roster-readiness check before moving a season to Ongoing.
+- Optional season-level adult voter verification, using player voter IDs recorded by season year.
 - Manual game scheduling and rescheduling for Ongoing seasons, with team and venue overlap checks.
 - Game score entry, Administrator finalization and reopening, and division win/loss standings computed from finalized results.
 - Administrator-configured sport statistics, Played/DNP game participation, and score reconciliation before finalization.
-- Nested sport, division, and team tabs, with selective loading and a manual refresh for cached season data.
+- Season workspace with a status-based overview and separate setup, teams, schedule, results, and standings sections; game details include scores and player statistics.
+- A desktop sidebar and collapsible mobile navigation, with selective loading and a manual refresh for cached season data.
 - Development-only sample teams and players, with a read-only verification command.
 
 Game cancellation, managed venues, season/career statistics, and playoffs are **not implemented yet**. Statistics require the latest database migration; back up and restore-test your database before upgrading. See the [project roadmap](docs/checklist.md), [backend checklist](docs/backend/checklist.md), and [implementation alignment tracker](docs/backend/implementation-alignment.md) for details and known gaps. The V1 design documents describe targets, not necessarily implemented behavior.
@@ -61,7 +63,15 @@ Open `http://localhost:5173`. Vite proxies `/api` requests to the backend on por
 
 To view the app on another device connected to the same trusted Wi-Fi network, run `npm start` from `frontend` instead of `npm run dev`. Vite will listen on the network interface. On the computer running the app, use `ipconfig` to find the Wi-Fi adapter's IPv4 address; on the other device, open `http://<computer-ip>:5173` (for example, `http://192.168.1.20:5173`). Allow the connection on **Private networks** if Windows Firewall prompts you. Keep the backend running on the computer: Vite proxies the other device's `/api` requests to `127.0.0.1:5000`, so the backend does not need to be exposed separately. Do not port-forward or expose the development server to the public internet.
 
-For an existing database with the required legacy schema, back up the database and review its migration state before running `..\.venv\Scripts\python.exe -m flask --app wsgi db upgrade` from `backend`. The migration chain is not a complete fresh-install solution.
+For an existing database with the required legacy schema, back up the database and review its migration state before running `..\.venv\Scripts\python.exe -m flask --app wsgi db upgrade` from `backend`. The migration chain is not a complete fresh-install solution. The voter-rule migration defaults existing seasons to non-strict and does not import historical eligibility numbers; an administrator must enter year-specific IDs manually.
+
+Administrators can enable the adult voter requirement when creating a season or
+while it is in Planning. Player profiles can be created without an ID. For a
+strict season, record the player's voter ID for that season's year on the
+Players page and verify it once per season when adding them to a roster.
+Verification is reused across sports. Changing the ID requires re-verification;
+unverified adults prevent a strict season from moving to Ongoing. Verification
+is a manual administrator check, not an external voter-registry lookup.
 
 ## Session cleanup
 
@@ -98,7 +108,7 @@ npm run build
 
 Demo scripts run only when explicitly invoked, not on application startup or browser refresh. They use the configured development `DATABASE_URL`; **never run them against production**.
 
-The team seed requires the existing `DEMO - Registration Season 2027` season to be in Registration and within its registration window, plus an active Administrator ID. It creates fictional Junior and Senior teams and players. Adult demo players receive explicitly fictional voter details marked as verified by that Administrator. From `backend`:
+The team seed requires the existing `DEMO - Registration Season 2027` season to be in Registration and within its registration window, plus an active Administrator ID. It creates fictional Junior and Senior teams and players. For strict seasons, adult demo players receive explicitly fictional voter details marked as verified by that Administrator. From `backend`:
 
 ```powershell
 ..\.venv\Scripts\python.exe seed_demo_teams.py --actor-id <administrator-user-id>

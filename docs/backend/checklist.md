@@ -20,6 +20,7 @@ Last reviewed: 2026-11-15
 - [x] Season-owned sport and division configuration.
 - [~] Season teams: register, list, edit, archive, and restore; archive/restore require Registration and restore checks roster conflicts.
 - [~] Players and rosters: player CRUD/archive and roster add/list/update/remove, including adult voter verification; division eligibility policy is not fully defined.
+- [x] Player service and policy cleanup: typed profile data, repository-owned persistence, and an injected Unit of Work. Teams are the next recommended cleanup target; track function documentation in the backend cleanup workbook.
 - [x] Demo team/player seed and read-only post-seed verification for development.
 - [~] Game scheduling and overlap validation implemented for creation, listing, and rescheduling; cancellation remains.
 - [~] Game scores, player statistics, finalization, reopening history and dynamic win/loss standings implemented; local migration verified and manual verification remains.

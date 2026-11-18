@@ -13,16 +13,16 @@ This file separates the documented Version 1 target from what is currently imple
 | Season lifecycle | Public history, Administrator create, controlled status transitions, date validation, sequential one-active-season checks, and a roster-readiness gate before moving to Ongoing. |
 | Season configuration | Administrators create, edit and remove season-owned sports and their divisions during Planning or Registration. Removal is blocked when teams exist. |
 | Season Teams | Public list; Administrator-only registration, update, and soft archive/restore. Archive/restore require Registration status, and restore also requires an open registration window and no conflicting active-team roster assignments. Duplicate names are blocked per division, including archived teams. |
-| Players and Rosters | Administrator Player profile create/read/update/archive/restore; roster list/add/jersey update/remove. Adult roster additions require voter verification, and Player profiles remain when roster links are removed. |
+| Players and Rosters | Administrator Player profile create/read/update/archive/restore; roster list/add/jersey update/remove. Seasons may require adult voter verification, using year-specific player IDs and one verification per season. Player profiles remain when roster links are removed. |
 | Game scheduling | Administrators create games for active teams in an Ongoing season and reschedule them before their start; public division listings show local start/end times and free-text venues. A serialized write prevents overlapping team or venue bookings. |
 | Results and standings | Administrators and Encoders enter scores after the scheduled end during Ongoing; Administrators finalize or reopen with a reason. Finalized games determine division win/loss standings. |
 | Game statistics | Administrators configure required/optional statistics per season sport; Administrators and Encoders record Played/DNP and player statistics. Finalization checks completeness and optional score reconciliation. |
-| Frontend | Login, dashboard, Add User, Players, Seasons, and Season Configuration with nested sport/division/team tabs, roster management, and division scheduling. Selected data uses a one-minute freshness period and can be manually refreshed. |
+| Frontend | Login, dashboard, Add User, Players, and a season workspace with separate setup, teams, schedule, results and standings sections, plus game details. Selected data uses a one-minute freshness period and can be manually refreshed. |
 | Database migrations | Roles/legacy user-role conversion, Seasons, seasonal configuration, SeasonTeam, Player, Roster, eligibility, archive fields, games, and schedule lock. |
 
 ## Implemented Tables
 
-The current ORM models cover `users`, `roles`, `seasons`, `season_sports`, `season_sport_divisions`, `season_teams`, `players`, `rosters`, `season_player_eligibilities`, `games`, result reopening history, sport statistic configurations and types, game participants, player game statistics, team points, and the singleton `schedule_lock`. The migration chain creates these feature tables; its first migration assumes a `users` table already exists.
+The current ORM models cover `users`, `roles`, `seasons`, `season_sports`, `season_sport_divisions`, `season_teams`, `players`, `player_voter_ids`, `rosters`, `season_player_eligibilities`, `games`, result reopening history, sport statistic configurations and types, game participants, player game statistics, team points, and the singleton `schedule_lock`. The migration chain creates these feature tables; its first migration assumes a `users` table already exists.
 
 The remaining tables in the Version 1 database design are targets, not implemented tables. This includes managed venues, playoffs, general audit logs, API request idempotency, and system settings. Game result reopening has a dedicated history table; it is not a general audit log.
 

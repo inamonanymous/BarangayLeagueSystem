@@ -42,9 +42,9 @@ Current feature folders include:
 - Users
 - Dashboard
 
-Team, roster, and game schedule components currently live under the Seasons
-feature. Shared API functions, layout, and tab components live under `shared`.
-Division standings are available with the game schedule.
+Team, roster, game schedule, results and standings components live under the
+Seasons feature. Shared API functions, layout, and tab components live under
+`shared`. A season workspace separates these activities into sections.
 
 This approach improves scalability, readability, and maintainability as the application grows.
 

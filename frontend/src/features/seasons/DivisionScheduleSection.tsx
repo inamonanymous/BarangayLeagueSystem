@@ -1,16 +1,17 @@
 import { useState } from 'react'
 import { AxiosError } from 'axios'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import { getDivisionGames, getStandings, getTeamsForDivision, rescheduleGame, scheduleGame, type ScheduledGame, type SeasonStatus } from '../../shared/api/seasons'
-import GameResultControls from './GameResultControls'
 import { seasonDataStaleTime } from './queryOptions'
 
 interface Props {
+  seasonId: number
+  sportId: number
   divisionAssignmentId: number
   seasonStatus: SeasonStatus
   isAdmin: boolean
-  canEncode: boolean
-  isActive: boolean
+  mode: 'schedule' | 'results' | 'standings'
 }
 
 function errorMessage(error: unknown): string {
@@ -22,7 +23,7 @@ function errorMessage(error: unknown): string {
   return 'Could not load or schedule games.'
 }
 
-function DivisionScheduleSection({ divisionAssignmentId, seasonStatus, isAdmin, canEncode, isActive }: Props) {
+function DivisionScheduleSection({ seasonId, sportId, divisionAssignmentId, seasonStatus, isAdmin, mode }: Props) {
   const queryClient = useQueryClient()
   const queryKey = ['division-games', divisionAssignmentId] as const
   const [home, setHome] = useState('')
@@ -31,17 +32,17 @@ function DivisionScheduleSection({ divisionAssignmentId, seasonStatus, isAdmin, 
   const [startsAt, setStartsAt] = useState('')
   const [endsAt, setEndsAt] = useState('')
   const [editingGame, setEditingGame] = useState<ScheduledGame | null>(null)
-  const games = useQuery({ queryKey, queryFn: () => getDivisionGames(divisionAssignmentId), enabled: isActive, staleTime: seasonDataStaleTime })
+  const games = useQuery({ queryKey, queryFn: () => getDivisionGames(divisionAssignmentId), enabled: mode !== 'standings', staleTime: seasonDataStaleTime })
   const teams = useQuery({
     queryKey: ['season-teams', divisionAssignmentId],
     queryFn: () => getTeamsForDivision(divisionAssignmentId),
-    enabled: isActive,
+    enabled: mode !== 'standings',
     staleTime: seasonDataStaleTime,
   })
   const standings = useQuery({
     queryKey: ['division-standings', divisionAssignmentId],
     queryFn: () => getStandings(divisionAssignmentId),
-    enabled: isActive,
+    enabled: mode === 'standings',
     staleTime: seasonDataStaleTime,
   })
   const create = useMutation({
@@ -78,9 +79,10 @@ function DivisionScheduleSection({ divisionAssignmentId, seasonStatus, isAdmin, 
 
   return (
     <section className="division-schedule">
-      <h5>Game schedule</h5>
-      <p className="muted-help">Times are local. Games cannot overlap for either team or the same venue.</p>
-      {isAdmin && seasonStatus === 'ONGOING' ? (
+      {mode !== 'standings' ? <>
+      <h3>{mode === 'schedule' ? 'Game schedule' : 'Game results'}</h3>
+      {mode === 'schedule' ? <p className="muted-help">Times are local. Games cannot overlap for either team or the same venue.</p> : null}
+      {mode === 'schedule' && isAdmin && seasonStatus === 'ONGOING' ? (
         <p className="muted-help">Reschedule before the game starts; the new start must also be in the future.</p>
       ) : null}
       {games.isPending || teams.isPending ? <p>Loading schedule...</p> : null}
@@ -91,12 +93,15 @@ function DivisionScheduleSection({ divisionAssignmentId, seasonStatus, isAdmin, 
         <ul className="schedule-list">
           {games.data.map((game) => (
             <li key={game.id} className="schedule-entry">
-              <strong>{teamName(game.home_team_id)} vs {teamName(game.away_team_id)}</strong>
+              <strong>{teamName(game.home_team_id)} (Home) vs {teamName(game.away_team_id)} (Away)</strong>
               <span>{new Date(game.starts_at).toLocaleString()} - {new Date(game.ends_at).toLocaleString()}</span>
               <span>Venue: {game.venue}</span>
-              <GameResultControls game={game} divisionId={divisionAssignmentId} isAdmin={isAdmin}
-                canEncode={canEncode} seasonStatus={seasonStatus} />
-              {editingGame?.id === game.id && isAdmin && seasonStatus === 'ONGOING' ? (
+              <span>Result: {game.result_status}{game.home_score !== null && game.away_score !== null
+                ? ` · Home: ${game.home_score} – Away: ${game.away_score}` : ' · No scores entered'}</span>
+              <Link to={`/seasons/${seasonId}/divisions/${divisionAssignmentId}/games/${game.id}?sport=${sportId}&from=${mode}`}>
+                View game details
+              </Link>
+              {mode === 'schedule' && editingGame?.id === game.id && isAdmin && seasonStatus === 'ONGOING' ? (
                 <form className="schedule-form" onSubmit={(event) => {
                   event.preventDefault()
                   reschedule.mutate(editingGame)
@@ -116,7 +121,7 @@ function DivisionScheduleSection({ divisionAssignmentId, seasonStatus, isAdmin, 
                   <button type="button" disabled={reschedule.isPending} onClick={() => { setEditingGame(null); reschedule.reset() }}>Cancel</button>
                   {reschedule.isError ? <p role="alert">{errorMessage(reschedule.error)}</p> : null}
                 </form>
-              ) : isAdmin && seasonStatus === 'ONGOING' ? (
+              ) : mode === 'schedule' && isAdmin && seasonStatus === 'ONGOING' ? (
                 <button type="button" disabled={reschedule.isPending} onClick={() => { reschedule.reset(); setEditingGame({ ...game }) }}>
                   Reschedule
                 </button>
@@ -125,9 +130,11 @@ function DivisionScheduleSection({ divisionAssignmentId, seasonStatus, isAdmin, 
           ))}
         </ul>
       ) : null}
-      <h5>Standings</h5>
+      </> : null}
+      {mode === 'standings' ? <>
+      <h3>Standings</h3>
       <p className="muted-help">Finalized games only. Equal wins are ranked by head-to-head win percentage among tied teams; teams with no head-to-head games rank last in the tie.</p>
-      {standings.isPending && isActive ? <p>Loading standings...</p> : null}
+      {standings.isPending ? <p>Loading standings...</p> : null}
       {standings.isError ? <p role="alert">{errorMessage(standings.error)}</p> : null}
       {standings.data?.length ? (
         <table>
@@ -137,9 +144,10 @@ function DivisionScheduleSection({ divisionAssignmentId, seasonStatus, isAdmin, 
           ))}</tbody>
         </table>
       ) : standings.data ? <p>No teams in this division yet.</p> : null}
-      {reschedule.isSuccess ? <p role="status">Game rescheduled.</p> : null}
-      {isAdmin && seasonStatus !== 'ONGOING' ? <p className="muted-help">Scheduling is available when the season is Ongoing.</p> : null}
-      {isAdmin && seasonStatus === 'ONGOING' && !teams.isError ? (
+      </> : null}
+      {mode === 'schedule' && reschedule.isSuccess ? <p role="status">Game rescheduled.</p> : null}
+      {mode === 'schedule' && isAdmin && seasonStatus !== 'ONGOING' ? <p className="muted-help">Scheduling is available when the season is Ongoing.</p> : null}
+      {mode === 'schedule' && isAdmin && seasonStatus === 'ONGOING' && !teams.isError ? (
         <>
           {activeTeams.length < 2 && !teams.isPending ? <p>At least two active teams are needed to schedule a game.</p> : null}
           <form className="schedule-form" onSubmit={(event) => { event.preventDefault(); create.mutate() }}>

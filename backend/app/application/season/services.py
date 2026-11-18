@@ -7,6 +7,7 @@ from app.application.season.policies import SeasonConflictError, SeasonPolicy
 from app.domain.models.seasons import Season
 from app.extensions import db
 from app.infrastructure.database.season_repository import SeasonRepository
+from app.infrastructure.database.unit_of_work import SqlAlchemyUnitOfWork
 
 
 class SeasonService(BaseService):
@@ -14,9 +15,11 @@ class SeasonService(BaseService):
         self,
         repository: SeasonRepository | None = None,
         policy: SeasonPolicy | None = None,
+        unit_of_work: SqlAlchemyUnitOfWork | None = None,
     ) -> None:
         self.repository = repository or SeasonRepository()
         self.policy = policy or SeasonPolicy()
+        self.unit_of_work = unit_of_work or SqlAlchemyUnitOfWork()
 
     def list_seasons(self) -> list[Season]:
         return self.repository.list_all()
@@ -26,6 +29,7 @@ class SeasonService(BaseService):
         *,
         name: str,
         year: int,
+        voter_required: bool = False,
         registration_start_date: date | None = None,
         registration_end_date: date | None = None,
         start_date: date | None = None,
@@ -46,6 +50,7 @@ class SeasonService(BaseService):
         season = Season(
             name=normalized_name,
             year=year,
+            voter_required=voter_required,
             registration_start_date=registration_start_date,
             registration_end_date=registration_end_date,
             start_date=start_date,
@@ -65,8 +70,19 @@ class SeasonService(BaseService):
 
         return season
 
+    def update_voter_rule(self, season_id: int, voter_required: bool) -> Season:
+        """Change the voter requirement before registration starts."""
+        with self.unit_of_work:
+            season = self.repository.get_for_update(season_id)
+            if season is None:
+                raise LookupError("Season not found.")
+            if season.season_status != "PLANNING":
+                raise ValueError("The voter rule can only be changed during Planning.")
+            season.voter_required = voter_required
+        return season
+
     def transition_season(self, season_id: int, next_status: str) -> Season:
-        season = self.repository.get_by_id(season_id)
+        season = self.repository.get_for_update(season_id)
         if season is None:
             raise LookupError("Season not found.")
 
@@ -77,6 +93,12 @@ class SeasonService(BaseService):
             self.repository.has_active_season(exclude_id=season.id),
         )
         if normalized_status == "ONGOING":
+            if season.voter_required:
+                count = self.repository.count_unverified_adults(season.id, season.year, date.today())
+                if count:
+                    raise SeasonConflictError(
+                        f"The season cannot move to Ongoing: {count} adult player(s) need voter verification."
+                    )
             incomplete_teams = self.repository.list_teams_below_minimum_roster_size(
                 season.id
             )

@@ -5,6 +5,7 @@ import LoginPage from './features/auth/LoginPage'
 import AddUserPage from './features/users/AddUserPage'
 import SeasonsPage from './features/seasons/SeasonsPage'
 import SeasonConfigurationPage from './features/seasons/SeasonConfigurationPage'
+import GameDetailsPage from './features/seasons/GameDetailsPage'
 import PlayersPage from './features/players/PlayersPage'
 
 function App() {
@@ -15,6 +16,7 @@ function App() {
         <Route path="/" element={<DashboardPage />} />
         <Route path="/seasons" element={<SeasonsPage />} />
         <Route path="/seasons/:seasonId/configuration" element={<SeasonConfigurationPage />} />
+        <Route path="/seasons/:seasonId/divisions/:divisionId/games/:gameId" element={<GameDetailsPage />} />
         <Route path="/users/new" element={<AddUserPage />} />
         <Route path="/players" element={<PlayersPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />

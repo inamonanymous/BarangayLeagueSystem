@@ -14,6 +14,7 @@ from app.application.rosters.types import (
     TeamSnapshot,
 )
 from app.domain.models.players import Player
+from app.domain.models.player_voter_ids import PlayerVoterId
 from app.domain.models.rosters import Roster
 from app.domain.models.season_player_eligibilities import SeasonPlayerEligibility
 from app.domain.models.season_sport_divisions import SeasonSportDivision
@@ -64,6 +65,7 @@ class RosterRepository(BaseRepository):
             SeasonSnapshot(
                 season.id, season.season_status,
                 season.registration_start_date, season.registration_end_date,
+                season.year, season.voter_required,
             ) if season is not None else None
         )
         return season_snapshot, division_snapshot, season_sport.id
@@ -132,6 +134,20 @@ class RosterRepository(BaseRepository):
 
     def roster_count(self, team_id: int) -> int:
         return Roster.query.filter_by(season_team_id=team_id).count()
+
+    def lock_player(self, player_id: int) -> None:
+        Player.query.filter_by(id=player_id).populate_existing().with_for_update().first()
+
+    def voter_status(self, player_id: int, season_id: int, year: int, *, for_update: bool = False) -> tuple[str | None, bool]:
+        record_query = PlayerVoterId.query.filter_by(player_id=player_id, year=year)
+        eligibility_query = SeasonPlayerEligibility.query.filter_by(season_id=season_id, player_id=player_id)
+        if for_update:
+            record_query = record_query.populate_existing().with_for_update()
+            eligibility_query = eligibility_query.populate_existing().with_for_update()
+        record = record_query.first()
+        eligibility = eligibility_query.first()
+        number = record.voter_number if record else None
+        return number, bool(number and eligibility and eligibility.is_voter_verified and eligibility.voter_number == number)
 
     def save_eligibility(
         self, season_id: int, player_id: int, voter_number: str,

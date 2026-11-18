@@ -9,8 +9,9 @@ See [Frontend Routes and URLs](frontend-routes.md) for pages and API endpoints.
 
 Feature-specific pages and components live in `frontend/src/features/`.
 Shared API functions, layout, and components are under `frontend/src/shared/`.
-The season configuration feature contains the nested team, roster, and game
-schedule sections; there are no separate game or standings pages yet.
+The season workspace separates setup, teams and rosters, schedule, results, and
+standings. A dedicated game page contains scores and player statistics. The
+main layout uses a desktop sidebar and a collapsible mobile menu.
 
 ## Data flow and state
 
@@ -19,12 +20,13 @@ manages server data and mutations; local React state manages selections, forms,
 and feedback. The backend independently enforces permissions and business
 rules, even where the UI hides or disables actions.
 
-On the season configuration page, sport, division, and team tabs control which
-queries are enabled. The selected division loads teams and games; the selected
-team loads its roster and, when permitted, available players. Season-page data
-has a one-minute freshness period. Relevant mutations invalidate queries, and
-**Refresh data** requests an immediate refresh; stale data is not polled or
-pushed automatically. Hidden tab panels remain mounted to preserve drafts.
+Each workspace section has its own sport and division selection. The selected
+division loads the data needed by the current section; the selected team loads
+its roster and, when permitted, available players. Setup and team tabs keep
+their hidden panels mounted, but navigating to another section or game page
+discards unsaved form drafts. Season data has a one-minute freshness period.
+Relevant mutations invalidate queries, and **Refresh data** requests an
+immediate refresh; stale data is not polled or pushed automatically.
 
 ## Styling and validation
 

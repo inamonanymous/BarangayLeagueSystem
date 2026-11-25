@@ -56,14 +56,19 @@ class CatalogService(BaseService):
     def create_division(
         self, sport_id: int, *, name: str, minimum_roster_size: int,
         maximum_roster_size: int, gender_policy: str = "ANY",
+        minimum_age_limit: int = 0,
+        maximum_age_limit: int = 0
     ) -> SeasonSportDivision:
         sport = self._get_configurable_sport(sport_id)
-        name, gender_policy = self._normalize_division(name, gender_policy, minimum_roster_size, maximum_roster_size)
+        name, gender_policy, minimum_roster_size, maximum_roster_size, minimum_age_limit, maximum_age_limit = self._normalize_division(name, gender_policy, minimum_roster_size, maximum_roster_size, minimum_age_limit, maximum_age_limit)
         if self.repository.division_name_exists(sport.id, name):
+            print("A division with that name already exists in this sport.")
             raise CatalogConflictError("A division with that name already exists in this sport.")
         division = SeasonSportDivision(
             season_sport_id=sport.id, name=name, gender_policy=gender_policy,
             minimum_roster_size=minimum_roster_size, maximum_roster_size=maximum_roster_size,
+            minimum_age_limit=minimum_age_limit,
+            maximum_age_limit=maximum_age_limit,
         )
         self.repository.add(division)
         self._commit("Division could not be saved because of a database constraint.")
@@ -72,18 +77,22 @@ class CatalogService(BaseService):
     def update_division(
         self, sport_id: int, division_id: int, *, name: str, minimum_roster_size: int,
         maximum_roster_size: int, gender_policy: str = "ANY",
+        minimum_age_limit: int = 0,
+        maximum_age_limit: int = 0
     ) -> SeasonSportDivision:
         sport = self._get_configurable_sport(sport_id)
         division = self.repository.get_division(division_id)
         if division is None or division.season_sport_id != sport.id:
             raise LookupError("Division not found for this season sport.")
-        name, gender_policy = self._normalize_division(name, gender_policy, minimum_roster_size, maximum_roster_size)
+        name, gender_policy, minimum_roster_size, maximum_roster_size, minimum_age_limit, maximum_age_limit = self._normalize_division(name, gender_policy, minimum_roster_size, maximum_roster_size, minimum_age_limit, maximum_age_limit)
         if self.repository.division_name_exists(sport.id, name, exclude_id=division_id):
             raise CatalogConflictError("A division with that name already exists in this sport.")
         division.name = name
         division.gender_policy = gender_policy
         division.minimum_roster_size = minimum_roster_size
         division.maximum_roster_size = maximum_roster_size
+        division.minimum_age_limit = minimum_age_limit
+        division.maximum_age_limit = maximum_age_limit
         self._commit("Division could not be saved because of a database constraint.")
         return division
 
@@ -128,8 +137,15 @@ class CatalogService(BaseService):
         self._validate_season(sport.season_id)
         return sport
 
-    def _normalize_division(self, name: str, gender_policy: str, minimum: int, maximum: int) -> tuple[str, str]:
-        return self.policy.normalize_name(name, "Division"), self.policy.validate_division(gender_policy, minimum, maximum)
+    def _normalize_division(self, name: str, gender_policy: str, minimum_roster_size: int, maximum_roster_size: int, minimum_age: int, maximum_age: int) -> tuple[str, str, int, int, int, int]:
+        return (
+            self.policy.normalize_name(name, "Division"),
+            self.policy.validate_division(gender_policy, minimum_roster_size, maximum_roster_size, minimum_age, maximum_age),
+            minimum_roster_size,
+            maximum_roster_size,
+            minimum_age,
+            maximum_age,
+        )
 
     @staticmethod
     def _commit(conflict_message: str) -> None:

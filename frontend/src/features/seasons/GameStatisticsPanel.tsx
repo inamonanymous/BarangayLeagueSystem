@@ -3,6 +3,7 @@ import { AxiosError } from 'axios'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getGameStatistics, saveGameStatistics, type GameStatisticsInput, type StatisticType } from '../../shared/api/seasons'
 import SelectionTabs from '../../shared/components/SelectionTabs'
+import TableFilters, { emptyTableFilters, matchesTableFilters, type TableFilterColumn, type TableFilterState } from '../../shared/components/TableFilters'
 import { seasonDataStaleTime } from './queryOptions'
 
 interface Props {
@@ -11,6 +12,25 @@ interface Props {
   awayTeamId: number
   canEdit: boolean
   onEditingChange: (editing: boolean) => void
+}
+
+interface StatisticsFilterRow {
+  jersey: string
+  name: string
+  status: 'PLAYED' | 'DNP' | null
+  values: Record<string, string>
+}
+
+function statisticsColumns(types: StatisticType[]): TableFilterColumn<StatisticsFilterRow>[] {
+  return [
+    { id: 'jersey', label: 'Jersey number', value: (player) => player.jersey },
+    { id: 'player', label: 'Player', value: (player) => player.name },
+    { id: 'participation', label: 'Participation', value: (player) => player.status === 'PLAYED' ? 'Played' : player.status === 'DNP' ? 'DNP' : 'Not marked' },
+    ...types.map((stat) => ({
+      id: `stat-${stat.id}`, label: `${stat.name} (${stat.abbreviation})`,
+      value: (player: StatisticsFilterRow) => player.status === 'PLAYED' ? player.values[String(stat.id)] || 'Not entered' : '—',
+    })),
+  ]
 }
 
 function statisticCents(raw: string | undefined, isScoring: boolean): bigint | null {
@@ -41,7 +61,7 @@ function PlayerTotalsRow({ players, types }: {
   types: StatisticType[]
 }) {
   return <tfoot><tr>
-    <th scope="row" colSpan={3}>Player total</th>
+    <th scope="row" colSpan={3}>Team totals</th>
     {types.map((stat) => {
       let total = 0n
       let count = 0
@@ -74,6 +94,10 @@ function GameStatisticsPanel({ gameId, homeTeamId, awayTeamId, canEdit, onEditin
   const [draft, setDraft] = useState<GameStatisticsInput | null>(null)
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null)
   const [validationError, setValidationError] = useState('')
+  const [tableFilters, setTableFilters] = useState<Record<string, TableFilterState>>({})
+  const [focusedPlayer, setFocusedPlayer] = useState<{ teamId: number; playerId: number } | null>(null)
+  const setTeamFilters = (filterKey: string, filters: TableFilterState) =>
+    setTableFilters((current) => ({ ...current, [filterKey]: filters }))
   const query = useQuery({ queryKey: key, queryFn: () => getGameStatistics(gameId), enabled: open, staleTime: seasonDataStaleTime })
   const save = useMutation({
     mutationFn: (input: GameStatisticsInput) => saveGameStatistics(gameId, {
@@ -117,6 +141,7 @@ function GameStatisticsPanel({ gameId, homeTeamId, awayTeamId, canEdit, onEditin
               const player = invalid.closest('[data-player-name]')?.getAttribute('data-player-name')
               const field = invalid.getAttribute('data-stat-name') ?? invalid.closest('label')?.textContent?.trim() ?? 'Statistic'
               setSelectedTeamId(teamId)
+              setTeamFilters(`edit-${teamId}`, emptyTableFilters())
               setValidationError(`${teamName}${player && player !== teamName ? ` - ${player}` : ''} - ${field}: ${invalid.validationMessage}`)
               return
             }
@@ -130,6 +155,17 @@ function GameStatisticsPanel({ gameId, homeTeamId, awayTeamId, canEdit, onEditin
                 const teamData = query.data.teams.find((item) => item.team_id === team.team_id)
                 const teamName = teamData?.name ?? `Team #${team.team_id}`
                 const side = team.team_id === homeTeamId ? 'Home' : team.team_id === awayTeamId ? 'Away' : null
+                const filterKey = `edit-${team.team_id}`
+                const filters = tableFilters[filterKey] ?? emptyTableFilters()
+                const columns = statisticsColumns(query.data.configuration.types)
+                const isVisible = (player: typeof team.players[number]) => {
+                  const playerData = teamData?.players.find((item) => item.player_id === player.player_id)
+                  return (focusedPlayer?.teamId === team.team_id && focusedPlayer.playerId === player.player_id)
+                    || matchesTableFilters({
+                      jersey: playerData?.jersey_number ?? '—', name: playerData?.name ?? `Player #${player.player_id}`,
+                      status: player.status, values: player.values,
+                    }, columns, filters)
+                }
                 return {
                   id: team.team_id,
                   label: side ? `${teamName} (${side})` : teamName,
@@ -141,6 +177,11 @@ function GameStatisticsPanel({ gameId, homeTeamId, awayTeamId, canEdit, onEditin
                       }} />
                     </label> : null}
                     {!team.players.length ? <p>No players on this roster.</p> : (
+                      <>
+                      <TableFilters name={`${teamName} player statistics`} columns={columns} filters={filters}
+                        onChange={(value) => setTeamFilters(filterKey, value)}
+                        visibleCount={team.players.filter(isVisible).length} totalCount={team.players.length} />
+                      <p className="muted-help">Team totals include all players, even when filtered. Hidden players are still saved and validated.</p>
                       <div className="box-score-scroll" role="region" aria-label={`${teamName} statistics table`} tabIndex={0}>
                         <table className="box-score">
                           <caption>{teamName} player statistics</caption>
@@ -156,7 +197,11 @@ function GameStatisticsPanel({ gameId, homeTeamId, awayTeamId, canEdit, onEditin
                                 ...item, players: item.players.map((entry, j) => j === playerIndex ? change : entry),
                               } : item),
                             })
-                            return <tr key={player.player_id} data-player-name={playerName}>
+                            return <tr key={player.player_id} data-player-name={playerName} hidden={!isVisible(player)}
+                              onFocusCapture={() => setFocusedPlayer({ teamId: team.team_id, playerId: player.player_id })}
+                              onBlurCapture={(event) => {
+                                if (!event.currentTarget.contains(event.relatedTarget)) setFocusedPlayer(null)
+                              }}>
                               <td>{playerData?.jersey_number ?? '—'}</td>
                               <th scope="row">{playerName}</th>
                               <td><select aria-label={`Participation for ${playerName}`} value={player.status ?? ''} onChange={(event) => {
@@ -177,6 +222,7 @@ function GameStatisticsPanel({ gameId, homeTeamId, awayTeamId, canEdit, onEditin
                           <PlayerTotalsRow players={team.players} types={query.data.configuration.types} />
                         </table>
                       </div>
+                      </>
                     )}
                   </div>,
                 }
@@ -187,10 +233,22 @@ function GameStatisticsPanel({ gameId, homeTeamId, awayTeamId, canEdit, onEditin
             {save.isError ? <p role="alert">{message}</p> : null}
           </form>
         ) : <>
-          {query.data.teams.map((team) => <div key={team.team_id} className="box-score-team">
+          {query.data.teams.map((team) => {
+            const filterKey = `view-${team.team_id}`
+            const filters = tableFilters[filterKey] ?? emptyTableFilters()
+            const columns = statisticsColumns(query.data.configuration.types)
+            const visiblePlayers = team.players.filter((player) => matchesTableFilters({
+              jersey: player.jersey_number, name: player.name, status: player.status, values: player.values,
+            }, columns, filters))
+            return <div key={team.team_id} className="box-score-team">
             <h3>{team.name}{team.team_id === homeTeamId ? ' (Home)' : team.team_id === awayTeamId ? ' (Away)' : ''}</h3>
             {query.data.configuration.allow_team_points ? <p>Team points: {team.team_points ?? 'not entered'}</p> : null}
             {!team.players.length ? <p>No players on this roster.</p> : (
+              <>
+              <TableFilters name={`${team.name} player statistics`} columns={columns} filters={filters}
+                onChange={(value) => setTeamFilters(filterKey, value)}
+                visibleCount={visiblePlayers.length} totalCount={team.players.length} />
+              <p className="muted-help">Team totals include all players, even when filtered.</p>
               <div className="box-score-scroll" role="region" aria-label={`${team.name} statistics table`} tabIndex={0}>
                 <table className="box-score">
                   <caption>{team.name} player statistics</caption>
@@ -198,7 +256,7 @@ function GameStatisticsPanel({ gameId, homeTeamId, awayTeamId, canEdit, onEditin
                     <th scope="col">#</th><th scope="col">Player</th><th scope="col">Participation</th>
                     {query.data.configuration.types.map((stat) => <th key={stat.id} scope="col"><abbr title={stat.name}>{stat.abbreviation}</abbr></th>)}
                   </tr></thead>
-                  <tbody>{team.players.map((player) => <tr key={player.player_id}>
+                  <tbody>{visiblePlayers.map((player) => <tr key={player.player_id}>
                     <td>{player.jersey_number}</td><th scope="row">{player.name}</th>
                     <td>{player.status === 'PLAYED' ? 'Played' : player.status === 'DNP' ? 'DNP' : 'Not marked'}</td>
                     {query.data.configuration.types.map((stat) => <td key={stat.id}>
@@ -208,8 +266,9 @@ function GameStatisticsPanel({ gameId, homeTeamId, awayTeamId, canEdit, onEditin
                   <PlayerTotalsRow players={team.players} types={query.data.configuration.types} />
                 </table>
               </div>
+              </>
             )}
-          </div>)}
+          </div>})}
           {canEdit && query.data.configuration.types.length ? <button type="button" onClick={() => {
             save.reset()
             setSelectedTeamId(null)

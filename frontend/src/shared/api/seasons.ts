@@ -70,9 +70,11 @@ export interface ConfiguredDivision {
   id: number
   season_sport_id: number
   name: string
-  gender_policy: 'ANY' | 'MALE_ONLY' | 'FEMALE_ONLY' | 'MIXED'
+  gender_policy: 'ANY' | 'MALE_ONLY' | 'FEMALE_ONLY'
   minimum_roster_size: number
   maximum_roster_size: number
+  minimum_age_limit: number
+  maximum_age_limit: number
 }
 
 export interface SeasonConfiguration {
@@ -120,6 +122,8 @@ export type DivisionPayload = {
   gender_policy: ConfiguredDivision['gender_policy']
   minimum_roster_size: number
   maximum_roster_size: number
+  minimum_age_limit: number | null
+  maximum_age_limit: number | null
 }
 
 export async function createSeasonDivision(sportId: number, payload: DivisionPayload): Promise<ConfiguredDivision> {

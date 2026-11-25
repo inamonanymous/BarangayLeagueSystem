@@ -3,6 +3,7 @@ import { AxiosError } from 'axios'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { createSeason, getSeasons, seasonsQueryKey, transitionSeason, updateSeasonVoterRule, type CreateSeasonPayload, type Season, type SeasonStatus } from '../../shared/api/seasons'
+import TableFilters, { emptyTableFilters, matchesTableFilters, type TableFilterColumn } from '../../shared/components/TableFilters'
 import { useCurrentUser } from '../auth/useCurrentUser'
 
 interface ApiErrorResponse {
@@ -40,6 +41,7 @@ function SeasonsPage() {
   const [endDate, setEndDate] = useState('')
   const [formError, setFormError] = useState('')
   const [transitionError, setTransitionError] = useState<{ seasonId: number; message: string } | null>(null)
+  const [filters, setFilters] = useState(emptyTableFilters)
 
   const seasonsQuery = useQuery({
     queryKey: seasonsQueryKey,
@@ -99,6 +101,22 @@ function SeasonsPage() {
     createSeasonMutation.mutate(payload)
   }
 
+  const columns: TableFilterColumn<Season>[] = [
+    { id: 'season', label: 'Season', value: (season) => `${season.name} ${season.year}` },
+    { id: 'registration', label: 'Registration', value: (season) => `${season.registration_start_date ?? 'Not set'} to ${season.registration_end_date ?? 'Not set'}` },
+    { id: 'competition', label: 'Competition', value: (season) => `${season.start_date ?? 'Not set'} to ${season.end_date ?? 'Not set'}` },
+    { id: 'status', label: 'Status', value: (season) => season.season_status },
+    { id: 'voter', label: 'Voter rule', value: (season) => season.voter_required ? 'Required for adults' : 'Not required' },
+    { id: 'workspace', label: 'Season workspace', value: () => 'Open season' },
+    ...(currentUser?.role === 'Administrator' ? [{
+      id: 'action', label: 'Action', value: (season: Season) => [
+        nextSeasonStatus[season.season_status] ? `Move to ${nextSeasonStatus[season.season_status]}` : 'Complete',
+        ...(season.season_status === 'PLANNING' || season.season_status === 'REGISTRATION' ? ['Archive'] : []),
+      ].join(' '),
+    }] : []),
+  ]
+  const visibleSeasons = seasonsQuery.data?.filter((season) => matchesTableFilters(season, columns, filters)) ?? []
+
   return (
     <div style={{ display: 'grid', gap: '1.5rem' }}>
       <section>
@@ -154,6 +172,9 @@ function SeasonsPage() {
         {seasonsQuery.isError ? <p role="alert">{getErrorMessage(seasonsQuery.error)}</p> : null}
         {seasonsQuery.data?.length === 0 ? <p>No seasons have been created yet.</p> : null}
         {seasonsQuery.data && seasonsQuery.data.length > 0 ? (
+          <>
+          <TableFilters name="seasons" columns={columns} filters={filters} onChange={setFilters}
+            visibleCount={visibleSeasons.length} totalCount={seasonsQuery.data.length} />
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', background: 'white' }}>
               <thead>
@@ -168,7 +189,7 @@ function SeasonsPage() {
                 </tr>
               </thead>
               <tbody>
-                {seasonsQuery.data.map((season) => (
+                {visibleSeasons.map((season) => (
                   <tr key={season.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
                     <td style={{ padding: '0.75rem' }}>{season.name} ({season.year})</td>
                     <td style={{ padding: '0.75rem' }}>{season.registration_start_date ?? 'Not set'} to {season.registration_end_date ?? 'Not set'}</td>
@@ -224,6 +245,7 @@ function SeasonsPage() {
               </tbody>
             </table>
           </div>
+          </>
         ) : null}
       </section>
     </div>

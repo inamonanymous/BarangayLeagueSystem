@@ -43,17 +43,19 @@ class RosterService(BaseService):
         jersey_number: str,
         actor_id: int,
         voter_verified: bool = False,
-        eligibility_notes: str | None = None,
+        eligibility_notes: str | None = None
     ) -> RosterData:
         try:
             with self.unit_of_work:
                 self.repository.lock_team_roster(team_id)
+                player = self.repository.get_player(player_id)
                 team = self.policy.validate_team_availability(
                     self.repository.get_team(team_id, for_update=True)
                 )
                 season, division, sport_id = self.policy.validate_season_details(
                     *self.repository.get_season_details(team)
                 )
+                self.policy.validate_division_gender_policy(player.gender, division)
                 self.team_policy.validate_registration(
                     season_status=season.season_status,
                     registration_start_date=season.registration_start_date,
@@ -61,7 +63,8 @@ class RosterService(BaseService):
                     registered_on=date.today(),
                 )
                 self.repository.lock_player(player_id)
-                player = self.policy.validate_player_availability(self.repository.get_player(player_id))
+                self.policy.validate_division_age_limit(player.birthdate, date.today(), division)
+                self.policy.validate_player_availability(player)
                 jersey = self.policy.normalize_jersey_number(jersey_number)
                 self.policy.validate_player_not_on_team(
                     self.repository.player_already_on_team(team_id, player_id)

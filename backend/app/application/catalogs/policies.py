@@ -25,6 +25,8 @@ class CatalogPolicy(BasePolicy):
         gender_policy: str,
         minimum_roster_size: int,
         maximum_roster_size: int,
+        minimum_age: int,
+        maximum_age: int,
     ) -> str:
         normalized_policy = gender_policy.strip().upper() if isinstance(gender_policy, str) else ""
         if normalized_policy not in self.GENDER_POLICIES:
@@ -35,6 +37,12 @@ class CatalogPolicy(BasePolicy):
             raise ValueError("Maximum roster size must be an integer.")
         if maximum_roster_size < minimum_roster_size:
             raise ValueError("Maximum roster size must be at least the minimum roster size.")
+        if isinstance(minimum_age, bool) or not isinstance(minimum_age, int) or minimum_age < 0:
+            raise ValueError("Minimum age must be a non-negative integer.")
+        if isinstance(maximum_age, bool) or not isinstance(maximum_age, int):
+            raise ValueError("Maximum age must be an integer.")
+        if maximum_age < minimum_age:
+            raise ValueError("Maximum age must be at least the minimum age.")
         return normalized_policy
 
     def validate_season_configurable(self, season_status: str) -> None:

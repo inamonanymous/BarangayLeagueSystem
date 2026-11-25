@@ -36,8 +36,10 @@ function SeasonSetupSection({ seasonId, isAdmin }: Props) {
   const [sportDescription, setSportDescription] = useState('')
   const [divisionName, setDivisionName] = useState('')
   const [genderPolicy, setGenderPolicy] = useState<ConfiguredDivision['gender_policy']>('ANY')
-  const [minimum, setMinimum] = useState('5')
-  const [maximum, setMaximum] = useState('15')
+  const [minimumAge, setMinimumAge] = useState('12')
+  const [maximumAge, setMaximumAge] = useState('65')
+  const [minimumRoster, setMinimumRoster] = useState('5')
+  const [maximumRoster, setMaximumRoster] = useState('15')
   const [selectedSport, setSelectedSport] = useState<number | null>(null)
   const [selectedDivisions, setSelectedDivisions] = useState<Record<number, number>>({})
   const [editingSport, setEditingSport] = useState<{ id: number; name: string; description: string } | null>(null)
@@ -72,10 +74,14 @@ function SeasonSetupSection({ seasonId, isAdmin }: Props) {
     onSuccess, onError,
   })
   const createDivision = useMutation({
-    mutationFn: (sportId: number) => createSeasonDivision(sportId, {
-      name: divisionName.trim(), gender_policy: genderPolicy,
-      minimum_roster_size: Number(minimum), maximum_roster_size: Number(maximum),
-    }),
+      mutationFn: (sportId: number) => createSeasonDivision(sportId, {
+        name: divisionName.trim(),
+        gender_policy: genderPolicy,
+        minimum_roster_size: Number(minimumRoster),
+        maximum_roster_size: Number(maximumRoster),
+        minimum_age_limit: minimumAge.trim() === "" ? null : Number(minimumAge),
+        maximum_age_limit: maximumAge.trim() === "" ? null : Number(maximumAge),
+      }),
     onSuccess: async (division) => {
       setDivisionName('')
       setSelectedDivisions((previous) => ({ ...previous, [division.season_sport_id]: division.id }))
@@ -87,6 +93,8 @@ function SeasonSetupSection({ seasonId, isAdmin }: Props) {
     mutationFn: (division: ConfiguredDivision) => updateSeasonDivision(division.season_sport_id, division.id, {
       name: division.name.trim(), gender_policy: division.gender_policy,
       minimum_roster_size: division.minimum_roster_size, maximum_roster_size: division.maximum_roster_size,
+      minimum_age_limit: division.minimum_age_limit,
+      maximum_age_limit: division.maximum_age_limit,
     }),
     onSuccess: async () => { setEditingDivision(null); await onSuccess() },
     onError,
@@ -162,17 +170,37 @@ function SeasonSetupSection({ seasonId, isAdmin }: Props) {
                           <div>
                             {isAdmin && open && editingDivision?.id === division.id ? (
                               <div>
-                                <input aria-label="Division name" value={editingDivision.name} onChange={(event) => setEditingDivision({ ...editingDivision, name: event.target.value })} />
-                                <select aria-label="Gender policy" value={editingDivision.gender_policy} onChange={(event) => setEditingDivision({ ...editingDivision, gender_policy: event.target.value as ConfiguredDivision['gender_policy'] })}>
-                                  <option value="ANY">Any</option><option value="MALE_ONLY">Male only</option><option value="FEMALE_ONLY">Female only</option><option value="MIXED">Mixed</option>
-                                </select>
-                                <input aria-label="Minimum roster size" type="number" min="1" value={editingDivision.minimum_roster_size} onChange={(event) => setEditingDivision({ ...editingDivision, minimum_roster_size: Number(event.target.value) })} />
-                                <input aria-label="Maximum roster size" type="number" min="1" value={editingDivision.maximum_roster_size} onChange={(event) => setEditingDivision({ ...editingDivision, maximum_roster_size: Number(event.target.value) })} />
+                                <label>
+                                  Division name
+                                  <input aria-label="Division name" value={editingDivision.name} onChange={(event) => setEditingDivision({ ...editingDivision, name: event.target.value })} />
+                                </label>
+                                <label>
+                                  Gender policy
+                                  <select aria-label="Gender policy" value={editingDivision.gender_policy} onChange={(event) => setEditingDivision({ ...editingDivision, gender_policy: event.target.value as ConfiguredDivision['gender_policy'] })}>
+                                    <option value="ANY">Any</option><option value="MALE_ONLY">Male only</option><option value="FEMALE_ONLY">Female only</option>
+                                  </select>
+                                </label>
+                                <label>
+                                  Minimum age limit
+                                  <input aria-label="Minimum age limit" type="number" min="1" value={editingDivision.minimum_age_limit} onChange={(event) => setEditingDivision({ ...editingDivision, minimum_age_limit: Number(event.target.value) })} />
+                                </label>
+                                <label>
+                                  Maximum age limit
+                                  <input aria-label="Maximum age limit" type="number" min="1" value={editingDivision.maximum_age_limit} onChange={(event) => setEditingDivision({ ...editingDivision, maximum_age_limit: Number(event.target.value) })} />
+                                </label>
+                                <label>
+                                  Minimum roster size
+                                  <input aria-label="Minimum roster size" type="number" min="1" value={editingDivision.minimum_roster_size} onChange={(event) => setEditingDivision({ ...editingDivision, minimum_roster_size: Number(event.target.value) })} />
+                                </label>
+                                <label>
+                                  Maximum roster size
+                                  <input aria-label="Maximum roster size" type="number" min="1" value={editingDivision.maximum_roster_size} onChange={(event) => setEditingDivision({ ...editingDivision, maximum_roster_size: Number(event.target.value) })} />
+                                </label>
                                 <button type="button" disabled={editDivision.isPending} onClick={() => editDivision.mutate(editingDivision)}>Save division</button>
                                 <button type="button" onClick={() => setEditingDivision(null)}>Cancel</button>
                               </div>
                             ) : <>
-                              <span>{division.name} · {division.gender_policy} · roster {division.minimum_roster_size}-{division.maximum_roster_size}</span>
+                              <span>{division.name} · {division.gender_policy} · Roster {division.minimum_roster_size}-{division.maximum_roster_size} · Age {division.minimum_age_limit}-{division.maximum_age_limit}</span>
                               {isAdmin && open ? <>
                                 <button type="button" onClick={() => setEditingDivision(division)}>Edit division</button>
                                 <button type="button" disabled={removeDivision.isPending} onClick={() => {
@@ -190,10 +218,12 @@ function SeasonSetupSection({ seasonId, isAdmin }: Props) {
                       <h5>Add division to {sport.name}</h5>
                       <label>Division name <input required maxLength={100} value={divisionName} onChange={(event) => setDivisionName(event.target.value)} /></label>
                       <label>Gender policy <select value={genderPolicy} onChange={(event) => setGenderPolicy(event.target.value as ConfiguredDivision['gender_policy'])}>
-                        <option value="ANY">Any</option><option value="MALE_ONLY">Male only</option><option value="FEMALE_ONLY">Female only</option><option value="MIXED">Mixed</option>
+                        <option value="ANY">Any</option><option value="MALE_ONLY">Male only</option><option value="FEMALE_ONLY">Female only</option>
                       </select></label>
-                      <label>Minimum roster <input required type="number" min="1" value={minimum} onChange={(event) => setMinimum(event.target.value)} /></label>
-                      <label>Maximum roster <input required type="number" min="1" value={maximum} onChange={(event) => setMaximum(event.target.value)} /></label>
+                      <label>Minimum roster <input required type="number" min="1" value={minimumRoster} onChange={(event) => setMinimumRoster(event.target.value)} /></label>
+                      <label>Maximum roster <input required type="number" min="1" value={maximumRoster} onChange={(event) => setMaximumRoster(event.target.value)} /></label>
+                      <label>Minimum age <input required type="number" min="1" value={minimumAge} onChange={(event) => setMinimumAge(event.target.value)} /></label>
+                      <label>Maximum age <input required type="number" min="1" value={maximumAge} onChange={(event) => setMaximumAge(event.target.value)} /></label>
                       <button type="submit" disabled={createDivision.isPending}>Create division</button>
                     </form>
                   ) : null}

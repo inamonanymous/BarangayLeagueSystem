@@ -133,6 +133,7 @@ def add_sport_to_season(season_id: int):
 @admin_required
 def add_division_to_season_sport(season_sport_id: int):
     payload = request.get_json(silent=True)
+    print(payload)
     if not isinstance(payload, dict):
         return error_response("A JSON request body is required.", status_code=400)
     try:

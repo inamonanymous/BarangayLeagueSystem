@@ -89,3 +89,33 @@ class RosterPolicy(BasePolicy):
         if not voter_verified or not normalized_voter_number:
             raise ValueError("Players aged 18 or older must be voter-verified before roster registration.")
         return normalized_voter_number
+    
+    def validate_division_gender_policy(self, gender: str, division: DivisionSnapshot) -> None:
+        normalized_gender = gender.strip().lower()
+        normalized_gender_policy = division.gender_policy.strip().lower()
+        print(normalized_gender)
+        print(division.gender_policy)
+        if normalized_gender_policy == "male_only" and normalized_gender != "male":
+            raise ValueError("Division only allows male players.")
+        if normalized_gender_policy == "female_only" and normalized_gender != "female":
+            raise ValueError("Division only allows female players.")
+        if normalized_gender_policy == "any" and normalized_gender not in {"male", "female", "other"}:
+            raise ValueError("Division allows only 'male', 'female', or 'any' gender.")
+        # If division.gender_policy is not one of the expected values, raise an error
+        print(normalized_gender_policy)
+        if normalized_gender_policy not in {"male_only", "female_only", "any"}:
+            raise ValueError("Invalid division gender policy.")
+
+    def validate_division_age_limit(self, birthdate: date, today: date, division: DivisionSnapshot) -> None:
+        age = today.year - birthdate.year - (
+            (today.month, today.day) < (birthdate.month, birthdate.day)
+        )
+        if division.minimum_age_limit is not None and age < division.minimum_age_limit:
+            raise ValueError(
+                f"Player does not meet the minimum age requirement of {division.minimum_age_limit}."
+            )
+
+        if division.maximum_age_limit is not None and age > division.maximum_age_limit:
+            raise ValueError(
+                f"Player exceeds the maximum age limit of {division.maximum_age_limit}."
+            )

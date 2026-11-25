@@ -42,7 +42,7 @@ class RosterRepository(BaseRepository):
         player = db.session.get(Player, player_id)
         if player is None:
             return None
-        return PlayerSnapshot(player.birthdate, player.is_archived)
+        return PlayerSnapshot(player.birthdate, player.is_archived, player.gender)
 
     def get_roster(self, roster_id: int) -> RosterSnapshot | None:
         roster = db.session.get(Roster, roster_id)
@@ -57,7 +57,14 @@ class RosterRepository(BaseRepository):
         if assignment is None:
             return None, None, None
         season_sport = db.session.get(SeasonSport, assignment.season_sport_id)
-        division_snapshot = DivisionSnapshot(assignment.maximum_roster_size)
+        division_snapshot = DivisionSnapshot(
+            assignment.id, 
+            assignment.gender_policy, 
+            assignment.maximum_roster_size, 
+            assignment.minimum_roster_size, 
+            assignment.minimum_age_limit, 
+            assignment.maximum_age_limit
+        )
         if season_sport is None:
             return None, division_snapshot, None
         season = db.session.get(Season, season_sport.season_id)

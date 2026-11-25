@@ -32,6 +32,10 @@ Totals are marked partial if a player is unmarked or a Played player's value is
 missing or invalid; unattributed team points remain separate. All configured
 statistics are added, including any percentage-type statistics. These totals
 are per game and do not replace the official score.
+The players, seasons, standings and player-statistics tables support a
+case-insensitive search and individual column filters. Filters apply to the
+loaded data only; clear them to show all rows. In the statistics editor, hidden
+players are still saved and validated, and team totals include all players.
 Required statistic columns are marked with an asterisk. Setup and team tabs support
 arrow, Home, and End keys.
 
@@ -46,7 +50,9 @@ new in-memory cache.
 Administrators can enable adult voter verification when creating a season or
 change it during Planning. Existing seasons default to non-strict after the
 voter-rule migration. Voter IDs are optional on player profiles and managed on
-the Players page by season year. Strict seasons require adults to have an ID
+the player's edit dialog on the Players page by season year. Profile and voter ID
+changes are saved separately; archived profiles can be viewed but must be restored
+before editing. Strict seasons require adults to have an ID
 for that year and be verified once per season; other sports reuse that
 verification. Changing an ID clears verification for that year, and roster
 entries show when re-verification is needed.

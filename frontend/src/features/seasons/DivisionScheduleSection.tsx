@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { AxiosError } from 'axios'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { getDivisionGames, getStandings, getTeamsForDivision, rescheduleGame, scheduleGame, type ScheduledGame, type SeasonStatus } from '../../shared/api/seasons'
+import { getDivisionGames, getStandings, getTeamsForDivision, rescheduleGame, scheduleGame, type ScheduledGame, type SeasonStatus, type Standing } from '../../shared/api/seasons'
+import TableFilters, { emptyTableFilters, matchesTableFilters, type TableFilterColumn } from '../../shared/components/TableFilters'
 import { seasonDataStaleTime } from './queryOptions'
 
 interface Props {
@@ -32,6 +33,7 @@ function DivisionScheduleSection({ seasonId, sportId, divisionAssignmentId, seas
   const [startsAt, setStartsAt] = useState('')
   const [endsAt, setEndsAt] = useState('')
   const [editingGame, setEditingGame] = useState<ScheduledGame | null>(null)
+  const [standingsFilters, setStandingsFilters] = useState(emptyTableFilters)
   const games = useQuery({ queryKey, queryFn: () => getDivisionGames(divisionAssignmentId), enabled: mode !== 'standings', staleTime: seasonDataStaleTime })
   const teams = useQuery({
     queryKey: ['season-teams', divisionAssignmentId],
@@ -71,6 +73,13 @@ function DivisionScheduleSection({ seasonId, sportId, divisionAssignmentId, seas
     },
   })
   const activeTeams = teams.data?.filter((team) => !team.is_archived) ?? []
+  const standingColumns: TableFilterColumn<Standing>[] = [
+    { id: 'rank', label: 'Rank', value: (standing) => String(standing.rank) },
+    { id: 'team', label: 'Team', value: (standing) => `${standing.team_name}${standing.is_archived ? ' (archived)' : ''}` },
+    { id: 'wins', label: 'Wins', value: (standing) => String(standing.wins) },
+    { id: 'losses', label: 'Losses', value: (standing) => String(standing.losses) },
+  ]
+  const visibleStandings = standings.data?.filter((standing) => matchesTableFilters(standing, standingColumns, standingsFilters)) ?? []
 
   function teamName(id: number): string {
     const team = teams.data?.find((item) => item.id === id)
@@ -137,12 +146,18 @@ function DivisionScheduleSection({ seasonId, sportId, divisionAssignmentId, seas
       {standings.isPending ? <p>Loading standings...</p> : null}
       {standings.isError ? <p role="alert">{errorMessage(standings.error)}</p> : null}
       {standings.data?.length ? (
+        <>
+        <TableFilters name="standings" columns={standingColumns} filters={standingsFilters} onChange={setStandingsFilters}
+          visibleCount={visibleStandings.length} totalCount={standings.data.length} />
+        <div className="table-scroll">
         <table>
           <thead><tr><th scope="col">Rank</th><th scope="col">Team</th><th scope="col">Wins</th><th scope="col">Losses</th></tr></thead>
-          <tbody>{standings.data.map((standing) => (
+          <tbody>{visibleStandings.map((standing) => (
             <tr key={standing.team_id}><td>{standing.rank}</td><td>{standing.team_name}{standing.is_archived ? ' (archived)' : ''}</td><td>{standing.wins}</td><td>{standing.losses}</td></tr>
           ))}</tbody>
         </table>
+        </div>
+        </>
       ) : standings.data ? <p>No teams in this division yet.</p> : null}
       </> : null}
       {mode === 'schedule' && reschedule.isSuccess ? <p role="status">Game rescheduled.</p> : null}

@@ -24,13 +24,19 @@ class SeasonSnapshot:
 
 @dataclass(frozen=True)
 class DivisionSnapshot:
+    id: int
+    gender_policy: str
     maximum_roster_size: int
+    minimum_roster_size: int
+    minimum_age_limit: int | None
+    maximum_age_limit: int | None
 
 
 @dataclass(frozen=True)
 class PlayerSnapshot:
     birthdate: date
     is_archived: bool
+    gender: str
 
 
 class VoterStatus(TypedDict):

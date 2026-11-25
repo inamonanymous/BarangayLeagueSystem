@@ -7,6 +7,8 @@ class SeasonSportDivision(db.Model):
     season_sport_id = db.Column(db.Integer, db.ForeignKey("season_sports.id"), nullable=False)
     name = db.Column(db.String(100), nullable=False)
     gender_policy = db.Column(db.String(20), nullable=False, default="ANY")
+    minimum_age_limit = db.Column(db.Integer, nullable=True)
+    maximum_age_limit = db.Column(db.Integer, nullable=True)
     minimum_roster_size = db.Column(db.Integer, nullable=False)
     maximum_roster_size = db.Column(db.Integer, nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, default=db.func.current_timestamp())
@@ -22,8 +24,10 @@ class SeasonSportDivision(db.Model):
             "season_sport_id": self.season_sport_id,
             "name": self.name,
             "gender_policy": self.gender_policy,
+            "minimum_age_limit": self.minimum_age_limit,
             "minimum_roster_size": self.minimum_roster_size,
             "maximum_roster_size": self.maximum_roster_size,
+            "maximum_age_limit": self.maximum_age_limit,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
